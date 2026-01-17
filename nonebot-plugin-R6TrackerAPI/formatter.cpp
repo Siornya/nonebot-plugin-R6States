@@ -36,54 +36,34 @@ string format_overview(const unordered_map<string, vector<string> > &sections, b
 			player.TRN_Elo_p = texts[7];
 			player.season_ranked_kd = stod(clean_number(texts[12]));
 			player.season_ranked_win_rate = texts[13];
-			player.season_unranked_kd = stod(clean_number(texts[15]));
-			player.season_unranked_win_rate = texts[16];
-			player.season_quickmatch_kd = stod(clean_number(texts[18]));
-			player.season_quickmatch_win_rate = texts[19];
-			player.season_event_kd = stod(clean_number(texts[21]));
-			player.season_event_win_rate = texts[22];
 
 			new_texts.emplace_back(
-				format("{} {}RP ({})\nTRN Elo:{} ({})",
-				       player.rank, player.RP, player.RP_p, player.TRN_Elo, player.TRN_Elo_p));
-
-			new_texts.emplace_back(
-				format("Playlist  KD   Win%\nRanked {} {}",
+				format("{} {}RP ({})\nTRN Elo:{} ({})\nPlaylist  KD   Win%\nRanked {} {}",
+				       player.rank, player.RP, player.RP_p, player.TRN_Elo, player.TRN_Elo_p,
 				       player.season_ranked_kd, player.season_ranked_win_rate));
 
 			if (full_mode) {
 				new_texts.emplace_back(
 					format("Unranked {} {}\nQuick Match {} {}\nEvent {} {}",
-					       player.season_unranked_kd, player.season_unranked_win_rate,
-					       player.season_quickmatch_kd, player.season_quickmatch_win_rate,
-					       player.season_event_kd, player.season_event_win_rate));
+					       texts[15], texts[16], texts[18], texts[19], texts[21], texts[22]));
 			}
 		} else if (section == "Season Peaks") {
+			new_texts.emplace_back("SEASON     BEST   KD  MATCHES");
+
 			size_t idx = 3;
-
-			new_texts.emplace_back(texts[0] + " " + texts[1] + " " + texts[2]);
-
 			while (idx < texts.size() && texts[idx] != "SEASON") {
-				ostringstream oss;
-				for (size_t j = idx; j < idx + 5; ++j) {
-					if (j > idx) oss << ' ';
-					oss << texts[j];
-				}
-				new_texts.emplace_back(oss.str());
+				new_texts.emplace_back(
+					texts[idx] + ' ' + texts[idx + 1] + "RP " + texts[idx + 3] + ' ' + texts[idx + 4]);
 				idx += 5;
 			}
 
-			new_texts.emplace_back(texts[idx] + " " + texts[idx + 1] + " " + texts[idx + 2]);
+			new_texts.emplace_back("SEASON     BEST   KD  MATCHES");
 			idx += 3;
 
 			size_t pre5 = min(idx + 25, texts.size());
 			while (idx < pre5) {
-				ostringstream oss;
-				for (size_t j = idx; j < idx + 5; ++j) {
-					if (j > idx) oss << ' ';
-					oss << texts[j];
-				}
-				new_texts.emplace_back(oss.str());
+				new_texts.emplace_back(
+					texts[idx] + ' ' + texts[idx + 1] + "RP " + texts[idx + 3] + ' ' + texts[idx + 4]);
 				idx += 5;
 			}
 		} else if (section == "Lifetime Overall") {

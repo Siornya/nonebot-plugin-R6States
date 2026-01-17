@@ -14,12 +14,6 @@ struct Player {
 	int Level;
 	double season_ranked_kd;
 	string season_ranked_win_rate;
-	double season_unranked_kd;
-	string season_unranked_win_rate;
-	double season_quickmatch_kd;
-	string season_quickmatch_win_rate;
-	double season_event_kd;
-	string season_event_win_rate;
 	// Lifetime Overall
 	double lifetime_overall_win_rate;
 	double lifetime_overall_kd;

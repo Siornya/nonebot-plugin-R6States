@@ -1,4 +1,4 @@
-from nonebot import on_shell_command
+from nonebot import on_command, on_shell_command
 from nonebot.rule import ArgumentParser
 from nonebot.params import ShellCommandArgs
 
@@ -13,6 +13,7 @@ parser.add_argument("-m", "--map", help="额外查看特定地图的数据")
 parser.add_argument("-f", "--full", action="store_true", help="查看完整数据")
 
 R6 = on_shell_command("R6", aliases={"r6"}, parser=parser, priority=10, block=True)
+R6_setting = on_command("R6 setting", aliases={"r6 setting"}, priority=2, block=True)
 
 
 async def query_player_overview(player_id: str, full_mode: bool) -> str:
@@ -45,3 +46,8 @@ async def handle_function(args=ShellCommandArgs()):
         await R6.finish("全开了喵！")
     else:
         await R6.finish(await query_player_overview(ids[0], full_mode))
+
+
+@R6_setting.handle()
+async def handle_function():
+    await R6_setting.finish("R6模块暂无可设置选项喵！")

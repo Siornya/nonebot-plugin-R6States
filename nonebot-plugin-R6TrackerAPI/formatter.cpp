@@ -11,15 +11,8 @@ using namespace std;
 namespace py = pybind11;
 
 /*
-作用：
-等价于 Python 的 format_overview 函数。
-接收 sections: Dict[str, List[str]]，根据 section 名称和 full_mode，
-按固定规则分组、拼接字符串，最终返回一个可直接发送给 bot 的文本。
-
-实现要点：
-- 严格保持 Python 版本的分支结构
-- 使用  vector /  unordered_map 对应 Python list / dict
-- 使用  ostringstream 高效拼接字符串
+使用unordered_map<string, vector<string> >对应sections: Dict[str, List[str]]
+按固定规则分组、拼接字符串，最终返回一个可直接发送给 bot 的文本
 */
 string format_overview(const unordered_map<string, vector<string> > &sections, bool full_mode) {
 	unordered_map<string, vector<string> > contexts;
@@ -39,9 +32,7 @@ string format_overview(const unordered_map<string, vector<string> > &sections, b
 
 			if (!full_mode) {
 				for (int i = 8; i <= 13; i += 3) {
-					new_texts.emplace_back(
-						texts[i] + " " + texts[i + 1] + " " + texts[i + 2]
-					);
+					new_texts.emplace_back(texts[i] + " " + texts[i + 1] + " " + texts[i + 2]);
 				}
 			} else {
 				for (size_t idx = 8; idx < texts.size(); idx += 3) {
@@ -137,9 +128,8 @@ string format_overview(const unordered_map<string, vector<string> > &sections, b
 			if (full_mode) {
 				for (auto [l, r]:
 				     {
-					     pair{28, 31}, {31, 34}, {34, 37}, {37, 40},
-					     {40, 42}, {42, 44}, {44, 46}, {46, 48},
-					     {48, 50}, {50, 52}
+					     pair{28, 31}, {31, 34}, {34, 37}, {37, 40}, {40, 42},
+					     {42, 44}, {44, 46}, {46, 48}, {48, 50}, {50, 52}
 				     }) {
 					ostringstream oss;
 					for (int i = l; i < r; ++i) {

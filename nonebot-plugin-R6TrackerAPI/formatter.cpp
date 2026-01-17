@@ -7,6 +7,8 @@
 #include <sstream>
 #include <algorithm>
 
+#include "player.hpp"
+
 using namespace std;
 namespace py = pybind11;
 
@@ -15,34 +17,46 @@ namespace py = pybind11;
 按固定规则分组、拼接字符串，最终返回一个可直接发送给 bot 的文本
 */
 string format_overview(const unordered_map<string, vector<string> > &sections, bool full_mode) {
+	Player player;
 	unordered_map<string, vector<string> > contexts;
+
+	auto clean_number = [](string s) {
+		s.erase(remove(s.begin(), s.end(), ','), s.end());
+		return s;
+	};
 
 	for (const auto &[section, texts]: sections) {
 		vector<string> new_texts;
 
 		if (section == "Current Season") {
+			player.rank = texts[0];
+			player.RP = stoi(clean_number(texts[1]));
+			player.RP_p = texts[3];
+			player.TRN_Elo = stoi(clean_number(texts[5]));
+			player.TRN_Elo_p = texts[7];
+			player.season_ranked_kd = stod(clean_number(texts[12]));
+			player.season_ranked_win_rate = texts[13];
+			player.season_unranked_kd = stod(clean_number(texts[15]));
+			player.season_unranked_win_rate = texts[16];
+			player.season_quickmatch_kd = stod(clean_number(texts[18]));
+			player.season_quickmatch_win_rate = texts[19];
+			player.season_event_kd = stod(clean_number(texts[21]));
+			player.season_event_win_rate = texts[22];
+
 			new_texts.emplace_back(
-				accumulate(texts.begin(), texts.begin() + 4, string(),
-				           [](const string &a, const string &b) {
-					           return a.empty() ? b : a + " " + b;
-				           })
-			);
+				format("{} {}RP ({})\nTRN Elo:{} ({})",
+				       player.rank, player.RP, player.RP_p, player.TRN_Elo, player.TRN_Elo_p));
 
-			new_texts.emplace_back(texts[4] + " " + texts[5] + " " + texts[7]);
+			new_texts.emplace_back(
+				format("Playlist  KD   Win%\nRanked {} {}",
+				       player.season_ranked_kd, player.season_ranked_win_rate));
 
-			if (!full_mode) {
-				for (int i = 8; i <= 13; i += 3) {
-					new_texts.emplace_back(texts[i] + " " + texts[i + 1] + " " + texts[i + 2]);
-				}
-			} else {
-				for (size_t idx = 8; idx < texts.size(); idx += 3) {
-					ostringstream oss;
-					for (size_t j = idx; j < min(idx + 3, texts.size()); ++j) {
-						if (j > idx) oss << ' ';
-						oss << texts[j];
-					}
-					new_texts.emplace_back(oss.str());
-				}
+			if (full_mode) {
+				new_texts.emplace_back(
+					format("Unranked {} {}\nQuick Match {} {}\nEvent {} {}",
+					       player.season_unranked_kd, player.season_unranked_win_rate,
+					       player.season_quickmatch_kd, player.season_quickmatch_win_rate,
+					       player.season_event_kd, player.season_event_win_rate));
 			}
 		} else if (section == "Season Peaks") {
 			size_t idx = 3;

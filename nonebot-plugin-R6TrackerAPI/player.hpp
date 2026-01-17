@@ -6,19 +6,20 @@ using std::string;
 
 struct Player {
 	// Current Season
+	string rank;
 	int RP;
-	double RP_p;
+	string RP_p;
 	int TRN_Elo;
-	double TRN_Elo_p;
+	string TRN_Elo_p;
 	int Level;
 	double season_ranked_kd;
-	double season_ranked_win_rate;
+	string season_ranked_win_rate;
 	double season_unranked_kd;
-	double season_unranked_win_rate;
+	string season_unranked_win_rate;
 	double season_quickmatch_kd;
-	double season_quickmatch_win_rate;
+	string season_quickmatch_win_rate;
 	double season_event_kd;
-	double season_event_win_rate;
+	string season_event_win_rate;
 	// Lifetime Overall
 	double lifetime_overall_win_rate;
 	double lifetime_overall_kd;

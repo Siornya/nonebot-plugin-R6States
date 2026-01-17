@@ -1,7 +1,9 @@
 from nonebot import on_command, on_shell_command
 from nonebot.rule import ArgumentParser
-from nonebot.params import ShellCommandArgs
+from nonebot.adapters import Message
+from nonebot.params import ShellCommandArgs, CommandArg
 
+from .config import *
 from .fetcher import fetch_overview
 from .parser import parse_overview
 from .formatter import format_overview
@@ -49,5 +51,20 @@ async def handle_function(args=ShellCommandArgs()):
 
 
 @R6_setting.handle()
-async def handle_function():
-    await R6_setting.finish("R6模块暂无可设置选项喵！")
+async def handle_function(args: Message = CommandArg()):
+    global R6_OUTPUT_MODE
+
+    mode = args.extract_plain_text().strip().lower()
+
+    if mode == "text":
+        R6_OUTPUT_MODE = OutputMode.TEXT
+    elif mode == "image":
+        R6_OUTPUT_MODE = OutputMode.IMAGE
+    else:
+        await R6_setting.finish(
+            "用法：\n"
+            "/R6 setting text\n"
+            "/R6 setting image"
+        )
+
+    await R6_setting.finish(f"✅ R6 返回模式已设置为：{R6_OUTPUT_MODE.name}")

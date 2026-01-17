@@ -1,4 +1,4 @@
-from nonebot import on_command, on_shell_command
+from nonebot import on_command, on_shell_command, logger
 from nonebot.rule import ArgumentParser
 from nonebot.adapters import Message
 from nonebot.params import ShellCommandArgs, CommandArg
@@ -22,7 +22,8 @@ async def query_player_overview(player_id: str, full_mode: bool) -> str:
     try:
         message = format_overview(await parse_overview(player_id), full_mode)
         return f"🎯 {player_id} 的所有 section:\n{message}"
-    except Exception:
+    except Exception as e:
+        logger.error(f"查询玩家 {player_id} 出错: {type(e).__name__}: {e}")
         return f"❌ 查询玩家 {player_id} 失败，可能是由于ID错误或网络延迟"
 
 

@@ -15,5 +15,6 @@ execute_process(
 find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(formatter formatter.cpp)
+pybind11_add_module(analyser analyser.cpp)
 
 target_link_libraries(formatter PRIVATE Python3::Module)

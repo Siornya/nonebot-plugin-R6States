@@ -54,21 +54,48 @@ async def handle_function(args=ShellCommandArgs()):
 @R6_setting.handle()
 async def handle_function(args: Message = CommandArg()):
     global R6_OUTPUT_MODE
+    global R6_ANALYSE
 
-    mode = args.extract_plain_text().strip().lower()
+    text = args.extract_plain_text().strip().lower()
+    parts = text.split()
 
-    if mode == "text":
-        R6_OUTPUT_MODE = OutputMode.TEXT
-    elif mode == "image":
-        R6_OUTPUT_MODE = OutputMode.IMAGE
+    if len(parts) != 2:
+        await R6_setting.finish(
+            "用法：\n"
+            "/R6 setting [key] [value]"
+            "key: [output | analyse]\n"
+            "value for output: [text | image]\n"
+            "value for analyse: [true | false]\n\n"
+        )
+
+    key, value = parts
+
+    if key == "output":
+        if value == "text":
+            R6_OUTPUT_MODE = OutputMode.TEXT
+        elif value == "image":
+            R6_OUTPUT_MODE = OutputMode.IMAGE
+        else:
+            await R6_setting.finish("output 可选：text / image")
+        await R6_setting.finish(f"✅ R6 返回模式已设置为：{R6_OUTPUT_MODE.name}")
+
+    elif key == "analyse":
+        if value == "true":
+            R6_ANALYSE = True
+        elif value == "false":
+            R6_ANALYSE = False
+        else:
+            await R6_setting.finish("analyse 可选：true / false")
+        await R6_setting.finish(f"✅ R6 分析模式已设置为：{R6_ANALYSE}")
+
     else:
         await R6_setting.finish(
             "用法：\n"
-            "/R6 setting text\n"
-            "/R6 setting image"
+            "/R6 setting [key] [value]"
+            "key: [output | analyse]\n"
+            "value for output: [text | image]\n"
+            "value for analyse: [true | false]\n\n"
         )
-
-    await R6_setting.finish(f"✅ R6 返回模式已设置为：{R6_OUTPUT_MODE.name}")
 
 
 @R6_help.handle()

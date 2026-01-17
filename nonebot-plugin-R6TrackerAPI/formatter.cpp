@@ -155,7 +155,6 @@ PYBIND11_MODULE(formatter, m) {
 		"format_overview",
 		&format_overview,
 		pybind11::arg("sections"),
-		pybind11::arg("full_mode"),
-		"Format overview text"
+		pybind11::arg("full_mode")
 	);
 }

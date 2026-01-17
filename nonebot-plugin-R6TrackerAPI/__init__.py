@@ -8,14 +8,15 @@ from .fetcher import fetch_overview
 from .parser import parse_overview
 from .formatter import format_overview
 
-parser = ArgumentParser("R6", add_help=True)
-parser.add_argument("-g", "--group", action="store_true", help="是否为队伍模式")
-parser.add_argument("ids", nargs="*", help="玩家ID")
-parser.add_argument("-m", "--map", help="额外查看特定地图的数据")
-parser.add_argument("-f", "--full", action="store_true", help="查看完整数据")
+parser = ArgumentParser("R6")
+parser.add_argument("-g", "--group", action="store_true")
+parser.add_argument("ids", nargs="*")
+parser.add_argument("-m", "--map")
+parser.add_argument("-f", "--full", action="store_true")
 
-R6 = on_shell_command("R6", aliases={"r6"}, parser=parser, priority=10, block=True)
+R6 = on_shell_command("R6", aliases={"r6"}, parser=parser, priority=10, block=False)
 R6_setting = on_command("R6 setting", aliases={"r6 setting"}, priority=2, block=True)
+R6_help = on_command("R6 help", aliases={"r6 help"}, priority=2, block=True)
 
 
 async def query_player_overview(player_id: str, full_mode: bool) -> str:
@@ -68,3 +69,13 @@ async def handle_function(args: Message = CommandArg()):
         )
 
     await R6_setting.finish(f"✅ R6 返回模式已设置为：{R6_OUTPUT_MODE.name}")
+
+
+@R6_help.handle()
+async def handle_function():
+    await R6_help.finish(
+        "/R6 [options] <id1> <id2> ... <idN>\n"
+        "-g, --group    开启组队模式，可查询多个ID（最多5个）\n"
+        "-m, --map      额外获取指定地图数据\n"
+        "-f, --full     查看完整数据\n"
+        "/R6 setting <text|image>    设置R6返回模式为文本或图片\n")

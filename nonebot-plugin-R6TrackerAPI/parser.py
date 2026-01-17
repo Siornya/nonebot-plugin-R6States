@@ -1,5 +1,9 @@
+import yaml
 from bs4 import BeautifulSoup
 from typing import List, Dict
+
+from .fetcher import fetch_overview
+from .config import *
 
 OVERVIEW_SECTION = [
     "Current Season",
@@ -12,12 +16,32 @@ OVERVIEW_SECTION = [
 ]
 
 
-def parse_overview(html: str) -> Dict[str, List[str]]:
+def load_players() -> Dict[str, Dict[str, List[str]]]:
+    """读取本地 YAML 文件，如果不存在返回空字典"""
+    if not PLAYERS_FILE.exists():
+        return {}
+    with PLAYERS_FILE.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def save_players(players: Dict[str, Dict[str, List[str]]]):
+    """保存所有玩家数据到 YAML 文件"""
+    with open(PLAYERS_FILE, "w", encoding="utf-8") as f:
+        yaml.safe_dump(players, f, allow_unicode=True)
+
+
+async def parse_overview(player_id: str) -> Dict[str, List[str]]:
     """
     提取Overview页面中的所有文本，并且划分部分
     :param html: Overview页面html源代码
     :return: 键值对<部分标题，文本数组>
     """
+    players = load_players()
+
+    if player_id in players:
+        return players[player_id]
+
+    html = await fetch_overview(player_id)
     soup = BeautifulSoup(html, "html.parser")
 
     texts: List[str] = []
@@ -37,5 +61,8 @@ def parse_overview(html: str) -> Dict[str, List[str]]:
 
         if current_section is not None:
             sections[current_section].append(t)
+
+    players[player_id] = sections
+    save_players(players)
 
     return sections

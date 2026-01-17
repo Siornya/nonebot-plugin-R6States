@@ -4,7 +4,6 @@ from nonebot.adapters import Message
 from nonebot.params import ShellCommandArgs, CommandArg
 
 from .config import *
-from .fetcher import fetch_overview
 from .parser import parse_overview
 from .formatter import format_overview
 
@@ -21,7 +20,7 @@ R6_help = on_command("R6 help", aliases={"r6 help"}, priority=2, block=True)
 
 async def query_player_overview(player_id: str, full_mode: bool) -> str:
     try:
-        message = format_overview(parse_overview(await fetch_overview(player_id)), full_mode)
+        message = format_overview(await parse_overview(player_id), full_mode)
         return f"🎯 {player_id} 的所有 section:\n{message}"
     except Exception:
         return f"❌ 查询玩家 {player_id} 失败，可能是由于ID错误或网络延迟"

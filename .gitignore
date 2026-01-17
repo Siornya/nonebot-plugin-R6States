@@ -1,6 +1,6 @@
-.idea/*
-.vscode/*
-__pycache__/*
-cmake-build-debug/*
-cmake-build-release/*
-test.py
+*/.idea/*
+*/.vscode/*
+*/__pycache__/*
+*/cmake-build-debug/*
+*/cmake-build-release/*
+*/test.py

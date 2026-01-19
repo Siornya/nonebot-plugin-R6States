@@ -90,7 +90,7 @@ string format_overview(const unordered_map<string, vector<string> > &sections, b
 			}
 		} else if (section == "All Matches") {
 			ostringstream oss;
-			for (size_t i = 2; i < texts.size(); ++i) {
+			for (size_t i = 2; i < texts.size()&&texts[i]!="All Matches"; ++i) {
 				oss << texts[i];
 			}
 			new_texts.emplace_back(oss.str());
@@ -140,7 +140,7 @@ string format_overview(const unordered_map<string, vector<string> > &sections, b
 
 	ostringstream result;
 	for (const auto &[section, texts]: contexts) {
-		result << "===== " << section << " =====\n";
+		result << "== " << section << " ==\n";
 		for (const auto &line: texts) {
 			result << line << '\n';
 		}

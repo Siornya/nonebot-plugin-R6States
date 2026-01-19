@@ -31,7 +31,7 @@ async def fetch_overview(player_id: str) -> str:
         )
 
         await page.goto(url, timeout=60_000)
-        await page.wait_for_selector("text=All Matches", timeout=30_000)
+        await page.wait_for_selector("text=All Matches, text=No matches found for the selected filters.", timeout=30_000)
 
         for _ in range(random.randint(2, 4)):
             await page.mouse.wheel(0, random.randint(300, 700))

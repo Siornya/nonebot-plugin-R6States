@@ -1,6 +1,35 @@
+import httpx
 from playwright.async_api import async_playwright
 import random
 import asyncio
+
+
+async def fetch_player_data(player_id: str,
+                            api_key: str,
+                            platform: str = "uplay",
+                            season: str = "latest",
+                            mode: str = "ranked") -> str:
+    url = "https://api.r6data.eu/api/stats"
+
+    params = {
+        "type": "operatorStats",
+        "nameOnPlatform": player_id,
+        "platformType": platform,
+        "seasonYear": season,
+        "modes": mode
+    }
+
+    headers = {"api-key": API_KEY}
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            return response.json()
+
+    except httpx.HTTPError as e:
+        return {"error": str(e)}
+
 
 async def fetch_overview(player_id: str) -> str:
     """
@@ -31,7 +60,8 @@ async def fetch_overview(player_id: str) -> str:
         )
 
         await page.goto(url, timeout=60_000)
-        await page.wait_for_selector("text=All Matches, text=No matches found for the selected filters.", timeout=30_000)
+        await page.wait_for_selector("text=All Matches, text=No matches found for the selected filters.",
+                                     timeout=30_000)
 
         for _ in range(random.randint(2, 4)):
             await page.mouse.wheel(0, random.randint(300, 700))

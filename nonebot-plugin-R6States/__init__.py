@@ -1,4 +1,5 @@
 from nonebot import on_command, on_shell_command, logger
+from nonebot.plugin import PluginMetadata
 from nonebot.rule import ArgumentParser
 from nonebot.adapters import Message
 from nonebot.params import ShellCommandArgs, CommandArg
@@ -6,6 +7,15 @@ from nonebot.params import ShellCommandArgs, CommandArg
 from .config import *
 from .parser import parse_overview
 from .formatter import format_overview
+
+__plugin_meta__ = PluginMetadata(
+    name="R6States",
+    description="插件描述",
+    usage="简单的用",
+    type="application",
+    config=Config,
+    extra={},
+)
 
 parser = ArgumentParser("R6")
 parser.add_argument("-g", "--group", action="store_true")

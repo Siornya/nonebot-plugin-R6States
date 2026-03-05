@@ -1,6 +1,12 @@
 from enum import IntEnum
 from pathlib import Path
 
+from pydantic import BaseModel
+
+
+class Config(BaseModel):
+    r6data_api_key: str
+
 
 class OutputMode(IntEnum):
     TEXT = 0

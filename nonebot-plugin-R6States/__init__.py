@@ -1,9 +1,12 @@
 from nonebot import on_command, on_shell_command, logger
+from nonebot.adapters.onebot.v11 import GroupMessageEvent, MessageEvent
 from nonebot.plugin import PluginMetadata
 from nonebot.rule import ArgumentParser
 from nonebot.adapters import Message
 from nonebot.params import ShellCommandArgs, CommandArg
 
+from .config_mannger import set_apikey
+from .fetcher import fetch_player_data
 from .config import *
 from .parser import parse_overview
 from .formatter import format_overview
@@ -24,8 +27,25 @@ parser.add_argument("-m", "--map")
 parser.add_argument("-f", "--full", action="store_true")
 
 R6 = on_shell_command("R6", aliases={"r6"}, parser=parser, priority=10, block=False)
-R6_setting = on_command("R6 setting", aliases={"r6 setting"}, priority=2, block=True)
+R6_setting = on_command("R6 setting", aliases={"r6 setting"}, priority=5, block=True)
 R6_help = on_command("R6 help", aliases={"r6 help"}, priority=2, block=True)
+
+SET_R6D_API_KEY = on_command("R6DAPI", aliases={"R6dapi", "r6dapi"}, priority=5, block=True)
+
+
+@SET_R6D_API_KEY.handle()
+async def handle_function(event: MessageEvent, args: Message = CommandArg()):
+    key = args.extract_plain_text().strip()
+    if not key:
+        await SET_R6D_API_KEY.finish("请在命令中输入API Key")
+
+    if isinstance(event, GroupMessageEvent):
+        set_apikey(str(event.group_id), key)
+        await SET_R6D_API_KEY.finish("✅ 已设置本群 API Key")
+
+    else:
+        set_apikey(str(event.user_id), key)
+        await SET_R6D_API_KEY.finish("✅ 已设置你的个人 API Key")
 
 
 async def query_player_overview(player_id: str, full_mode: bool) -> str:
@@ -37,8 +57,13 @@ async def query_player_overview(player_id: str, full_mode: bool) -> str:
         return f"❌ 查询玩家 {player_id} 失败，可能是由于ID错误或网络延迟"
 
 
+async def query_player_data(player_id: str, chat_id: str):
+    message = await fetch_player_data(player_id, chat_id)
+    return message
+
+
 @R6.handle()
-async def handle_function(args=ShellCommandArgs()):
+async def handle_function(event: MessageEvent, args=ShellCommandArgs()):
     ids = args.ids
     is_group = args.group
     full_mode = args.full
@@ -58,7 +83,10 @@ async def handle_function(args=ShellCommandArgs()):
             await R6.send(await query_player_overview(id, full_mode))
         await R6.finish("全开了喵！")
     else:
-        await R6.finish(await query_player_overview(ids[0], full_mode))
+        if isinstance(event, GroupMessageEvent):
+            await R6.finish(await query_player_data(ids[0], str(event.group_id)))
+        else:
+            await R6.finish(await query_player_data(ids[0], str(event.user_id)))
 
 
 @R6_setting.handle()

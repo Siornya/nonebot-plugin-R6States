@@ -3,23 +3,25 @@ from playwright.async_api import async_playwright
 import random
 import asyncio
 
+from .config_mannger import get_apikey
+
 
 async def fetch_player_data(player_id: str,
-                            api_key: str,
-                            platform: str = "uplay",
-                            season: str = "latest",
-                            mode: str = "ranked") -> str:
+                            chat_id: str,
+                            platform: str = "uplay") -> str:
     url = "https://api.r6data.eu/api/stats"
 
     params = {
         "type": "operatorStats",
         "nameOnPlatform": player_id,
         "platformType": platform,
-        "seasonYear": season,
-        "modes": mode
     }
 
-    headers = {"api-key": API_KEY}
+    api_key = get_apikey(chat_id)
+
+    if not api_key:
+        return "未设置 API Key，请使用 /R6DAPI"
+    headers = {"api-key": api_key}
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -28,7 +30,7 @@ async def fetch_player_data(player_id: str,
             return response.json()
 
     except httpx.HTTPError as e:
-        return {"error": str(e)}
+        return f"error: {str(e)}"
 
 
 async def fetch_overview(player_id: str) -> str:

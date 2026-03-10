@@ -7,17 +7,18 @@ from nonebot.params import ShellCommandArgs, CommandArg
 
 from .config_mannger import set_apikey
 from .fetcher import fetch_player_data
-from .config import *
+from .config import Config
 from .parser import parse_overview
 from .formatter import format_overview
 
 __plugin_meta__ = PluginMetadata(
-    name="R6States",
-    description="插件描述",
+    name="彩六数据查询",
+    description="查询指定玩家的各项数据",
     usage="简单的用",
+    homepage="https://github.com/Siornya/nonebot-plugin-R6States",
     type="application",
     config=Config,
-    extra={},
+    supported_adapters=set(),
 )
 
 parser = ArgumentParser("R6")
@@ -91,9 +92,6 @@ async def handle_function(event: MessageEvent, args=ShellCommandArgs()):
 
 @R6_setting.handle()
 async def handle_function(args: Message = CommandArg()):
-    global R6_OUTPUT_MODE
-    global R6_ANALYSE
-
     text = args.extract_plain_text().strip().lower()
     parts = text.split()
 
@@ -110,9 +108,9 @@ async def handle_function(args: Message = CommandArg()):
 
     if key == "output":
         if value == "text":
-            R6_OUTPUT_MODE = OutputMode.TEXT
+            R6_OUTPUT_MODE = Config.OutputMode.TEXT
         elif value == "image":
-            R6_OUTPUT_MODE = OutputMode.IMAGE
+            R6_OUTPUT_MODE = Config.OutputMode.IMAGE
         else:
             await R6_setting.finish("output 可选：text / image")
         await R6_setting.finish(f"✅ R6 返回模式已设置为：{R6_OUTPUT_MODE.name}")

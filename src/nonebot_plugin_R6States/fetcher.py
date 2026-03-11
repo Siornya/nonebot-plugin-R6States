@@ -8,7 +8,7 @@ from .config_mannger import get_apikey
 
 async def fetch_player_data(player_id: str,
                             chat_id: str,
-                            platform: str = "uplay") -> str:
+                            platform: str = "uplay") -> dict:
     url = "https://api.r6data.eu/api/stats"
 
     params = {
@@ -20,8 +20,9 @@ async def fetch_player_data(player_id: str,
     api_key = get_apikey(chat_id)
 
     if not api_key:
-        return "未设置 API Key，请使用 /R6DAPI"
-    headers = {"api-key": api_key}
+        return {"error": "未设置 API Key，请使用 /R6DAPI"}
+    headers = {"api-key": api_key,
+               "Content-Type": "application/json"}
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -30,7 +31,7 @@ async def fetch_player_data(player_id: str,
             return response.json()
 
     except httpx.HTTPError as e:
-        return f"error: {str(e)}"
+        return {"error": str(e)}
 
 
 async def fetch_overview(player_id: str) -> str:

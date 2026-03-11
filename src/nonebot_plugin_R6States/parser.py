@@ -2,8 +2,12 @@ import yaml
 from bs4 import BeautifulSoup
 from typing import List, Dict
 
+from nonebot import get_plugin_config
+
+from .config import Config
 from .fetcher import fetch_overview
-from .config import *
+
+plugin_config = get_plugin_config(Config)
 
 OVERVIEW_SECTION = [
     "Current Season",
@@ -18,15 +22,15 @@ OVERVIEW_SECTION = [
 
 def load_players() -> Dict[str, Dict[str, List[str]]]:
     """读取本地 YAML 文件，如果不存在返回空字典"""
-    if not PLAYERS_FILE.exists():
+    if not plugin_config.PLAYERS_FILE.exists():
         return {}
-    with PLAYERS_FILE.open("r", encoding="utf-8") as f:
+    with plugin_config.PLAYERS_FILE.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
 def save_players(players: Dict[str, Dict[str, List[str]]]):
     """保存所有玩家数据到 YAML 文件"""
-    with open(PLAYERS_FILE, "w", encoding="utf-8") as f:
+    with open(plugin_config.PLAYERS_FILE, "w", encoding="utf-8") as f:
         yaml.safe_dump(players, f, allow_unicode=True)
 
 

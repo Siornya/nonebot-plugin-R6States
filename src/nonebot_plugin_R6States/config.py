@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 
 class Config(BaseModel):
-    r6data_api_key: str
+    r6data_api_key: str | None = None
 
     class OutputMode(IntEnum):
         TEXT = 0

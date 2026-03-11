@@ -1,6 +1,6 @@
 from nonebot import on_command, on_shell_command, logger
 from nonebot.adapters.onebot.v11 import GroupMessageEvent, MessageEvent
-from nonebot.plugin import PluginMetadata
+from nonebot.plugin import PluginMetadata, get_plugin_config
 from nonebot.rule import ArgumentParser
 from nonebot.adapters import Message
 from nonebot.params import ShellCommandArgs, CommandArg
@@ -8,6 +8,7 @@ from nonebot.params import ShellCommandArgs, CommandArg
 from .config_mannger import set_apikey
 from .fetcher import fetch_player_data
 from .config import Config
+from .formatter2 import format_operator_stats
 from .parser import parse_overview
 from .formatter import format_overview
 
@@ -18,8 +19,10 @@ __plugin_meta__ = PluginMetadata(
     homepage="https://github.com/Siornya/nonebot-plugin-R6States",
     type="application",
     config=Config,
-    supported_adapters=set(),
+    supported_adapters={"~onebot.v11"},
 )
+
+plugin_config = get_plugin_config(Config)
 
 parser = ArgumentParser("R6")
 parser.add_argument("-g", "--group", action="store_true")
@@ -46,21 +49,21 @@ async def handle_function(event: MessageEvent, args: Message = CommandArg()):
 
     else:
         set_apikey(str(event.user_id), key)
-        await SET_R6D_API_KEY.finish("✅ 已设置你的个人 API Key")
+        await SET_R6D_API_KEY.finish("✅ 已设置个人 API Key")
 
 
 async def query_player_overview(player_id: str, full_mode: bool) -> str:
     try:
         message = format_overview(await parse_overview(player_id), full_mode)
-        return f"🎯 {player_id} 的所有 section:\n{message}"
+        return f"🎯 {player_id} 的总体数据:\n{message}"
     except Exception as e:
         logger.error(f"查询玩家 {player_id} 出错: {type(e).__name__}: {e}")
         return f"❌ 查询玩家 {player_id} 失败，可能是由于ID错误或网络延迟"
 
 
 async def query_player_data(player_id: str, chat_id: str):
-    message = await fetch_player_data(player_id, chat_id)
-    return message
+    data = await fetch_player_data(player_id, chat_id)
+    return format_operator_stats(data)
 
 
 @R6.handle()
@@ -70,28 +73,36 @@ async def handle_function(event: MessageEvent, args=ShellCommandArgs()):
     full_mode = args.full
 
     if not ids:
-        await R6.finish("一个id都不给是想让我开开你双亲的骨灰盒吗？")
+        await R6.finish("未提供ID，使用/R6 help 查看用法")
 
     if is_group:
         if len(ids) > 5:
-            await R6.finish("一次开那么多是把双亲的棺材本拿来给我当网费吗？")
+            await R6.finish("组队模式最多只能查询5个ID")
     else:
         if len(ids) != 1:
-            await R6.finish("首先你想开盒别人就不对。")
+            await R6.finish("单人模式只能查询1个ID")
 
-    if is_group:
-        for id in ids:
-            await R6.send(await query_player_overview(id, full_mode))
-        await R6.finish("全开了喵！")
-    else:
-        if isinstance(event, GroupMessageEvent):
-            await R6.finish(await query_player_data(ids[0], str(event.group_id)))
+    if not full_mode:
+        if is_group:
+            for id in ids:
+                await R6.send(await query_player_overview(id, full_mode))
+            await R6.finish("全开了喵！")
         else:
-            await R6.finish(await query_player_data(ids[0], str(event.user_id)))
+            if isinstance(event, GroupMessageEvent):
+                await R6.finish(await query_player_data(ids[0], str(event.group_id)))
+            else:
+                await R6.finish(await query_player_data(ids[0], str(event.user_id)))
+    else:
+        if is_group:
+            for id in ids:
+                await R6.send(await query_player_overview(id, full_mode))
+            await R6.finish("全开了喵！")
+        else:
+            await R6.finish(await query_player_overview(ids[0], full_mode))
 
 
-@R6_setting.handle()
 async def handle_function(args: Message = CommandArg()):
+    global R6_ANALYSE, R6_OUTPUT_MODE
     text = args.extract_plain_text().strip().lower()
     parts = text.split()
 

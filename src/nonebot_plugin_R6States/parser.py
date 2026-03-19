@@ -1,5 +1,7 @@
+import datetime
 import yaml
 from bs4 import BeautifulSoup
+from datetime import datetime
 from typing import List, Dict
 
 from nonebot import get_plugin_config
@@ -21,9 +23,15 @@ OVERVIEW_SECTION = [
 
 
 def load_players() -> Dict[str, Dict[str, List[str]]]:
-    """读取本地 YAML 文件，如果不存在返回空字典"""
-    if not plugin_config.PLAYERS_FILE.exists():
+    file_path = plugin_config.PLAYERS_FILE
+
+    if not file_path.exists():
         return {}
+
+    mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
+    if datetime.now() - mtime > datetime.timedelta(days=1):
+        return {}
+
     with plugin_config.PLAYERS_FILE.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
@@ -37,7 +45,7 @@ def save_players(players: Dict[str, Dict[str, List[str]]]):
 async def parse_overview(player_id: str) -> Dict[str, List[str]]:
     """
     提取Overview页面中的所有文本，并且划分部分
-    :param html: Overview页面html源代码
+    :param player_id: 玩家id
     :return: 键值对<部分标题，文本数组>
     """
     players = load_players()

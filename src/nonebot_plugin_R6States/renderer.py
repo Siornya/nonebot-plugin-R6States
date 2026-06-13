@@ -33,6 +33,7 @@ _DEF = (94, 160, 232)   # 防
 _SCALE = 2              # 超采样倍率
 _W = 760 * _SCALE
 _PAD = 36 * _SCALE
+_PER_SIDE = 4           # 攻/防各展示几个干员
 
 _font_cache: dict[tuple[str, int, Optional[int]], ImageFont.FreeTypeFont] = {}
 
@@ -100,7 +101,7 @@ def _ascent(size: int) -> int:
     return _font(_NOTO, size).getmetrics()[0]
 
 
-def render_full_stats(player_id: str, data: dict[str, Any], top_n: int = 8) -> bytes:
+def render_full_stats(player_id: str, data: dict[str, Any]) -> bytes:
     info = data.get("data") or {}
     handle = (info.get("platformInfo") or {}).get("platformUserHandle") or player_id
     meta = info.get("metadata") or {}
@@ -149,9 +150,9 @@ def render_full_stats(player_id: str, data: dict[str, Any], top_n: int = 8) -> b
         section("干员 Top")
         by_rounds = lambda o: o.get("roundsPlayed", 0)  # noqa: E731
         atks = sorted((o for o in operators if o.get("side") == "Attacker"),
-                      key=by_rounds, reverse=True)[:4]
+                      key=by_rounds, reverse=True)[:_PER_SIDE]
         defs = sorted((o for o in operators if o.get("side") == "Defender"),
-                      key=by_rounds, reverse=True)[:4]
+                      key=by_rounds, reverse=True)[:_PER_SIDE]
 
         gap = 48 * _SCALE
         col_w = (_W - 2 * _PAD - gap) // 2

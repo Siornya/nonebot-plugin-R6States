@@ -1,10 +1,3 @@
-"""轻量本地缓存：单 JSON 文件 + 每条目独立 TTL + 异步锁 + 原子写。
-
-设计动机（对比旧的 players.yaml）：
-- 旧实现按**整文件** mtime 判 TTL，一次写入会重置所有条目的有效期，过期还整包丢弃。
-- 这里每条目自带写入时间戳，**各自过期**；TTL 由调用方按 endpoint 指定。
-- 写入走 "临时文件 + os.replace" 原子替换，配异步锁，避免并发下半写/相互覆盖。
-"""
 from __future__ import annotations
 
 import os
@@ -29,7 +22,6 @@ class JSONCache:
                 data = json.load(f)
             return data if isinstance(data, dict) else {}
         except (json.JSONDecodeError, OSError):
-            # 缓存损坏不应影响主流程：当作空缓存重建。
             return {}
 
     def _atomic_write(self, data: dict[str, dict[str, Any]]) -> None:
@@ -46,18 +38,18 @@ class JSONCache:
                 pass
             raise
 
-    async def get(self, key: str, ttl: float) -> Optional[Any]:
-        """命中且未超过 ttl（秒）则返回缓存值，否则返回 None。"""
+    async def get(self, key: str) -> Optional[Any]:
         async with self._lock:
             entry = self._load().get(key)
-        if not entry:
-            return None
-        if time.time() - entry.get("ts", 0) > ttl:
+        if not entry or entry.get("exp", 0) < time.time():
             return None
         return entry.get("value")
 
-    async def set(self, key: str, value: Any) -> None:
+    async def set(self, key: str, value: Any, ttl: float) -> None:
+        """写入并带上过期时间；顺手剔除已过期条目，避免文件无限增长。"""
+        now = time.time()
         async with self._lock:
             data = self._load()
-            data[key] = {"ts": time.time(), "value": value}
+            data[key] = {"exp": now + ttl, "value": value}
+            data = {k: v for k, v in data.items() if v.get("exp", 0) > now}
             self._atomic_write(data)

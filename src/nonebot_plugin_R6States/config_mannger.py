@@ -1,9 +1,3 @@
-"""按群/按人管理 r6data api-key。
-
-落盘格式（带设置时间戳，用于过期提醒；key 官方有效期约 1 个月）::
-
-    {"apikeys": {"<id>": {"key": "...", "set_at": 1712345678.0}}}
-"""
 from __future__ import annotations
 
 import json
@@ -53,10 +47,6 @@ def get_apikey(target_id: str) -> Optional[str]:
 
 
 def resolve_apikey(scopes: list[str]) -> tuple[Optional[str], Optional[str]]:
-    """按候选顺序找第一个有 key 的归属，返回 (key, 命中的 scope)。
-
-    群聊传 [群号, 用户号]：群没设 key 时回退到个人 key。
-    """
     for scope in scopes:
         key = get_apikey(scope)
         if key:
@@ -65,7 +55,6 @@ def resolve_apikey(scopes: list[str]) -> tuple[Optional[str], Optional[str]]:
 
 
 def get_apikey_age_days(target_id: str) -> Optional[float]:
-    """key 已设置的天数；旧格式/未设置返回 None。"""
     entry = _entry(target_id)
     if not entry:
         return None

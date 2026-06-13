@@ -2,16 +2,22 @@ from nonebot import on_command, logger
 from nonebot.adapters import Message
 from nonebot.params import CommandArg
 from nonebot.plugin import PluginMetadata, get_plugin_config
-from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent
+from nonebot.adapters.onebot.v11 import MessageEvent, MessageSegment, GroupMessageEvent
 
 from .config import Config
-from .service import VALID_PLATFORMS, ServiceError, get_operator_stats
-from .formatter import format_operator_stats
-from .config_mannger import KEY_TTL_DAYS, set_apikey, get_apikey_age_days
+from .service import VALID_PLATFORMS, ServiceError, get_full_stats
+from .formatter import format_full_stats
+from .renderer import render_full_stats
+from .config_mannger import (
+    KEY_TTL_DAYS,
+    set_apikey,
+    resolve_apikey,
+    get_apikey_age_days,
+)
 
 __plugin_meta__ = PluginMetadata(
     name="彩六数据查询",
-    description="查询指定玩家的干员数据",
+    description="查询指定玩家的数据",
     usage="/r6 <id> [平台]　/r6key <key>　/r6help",
     homepage="https://github.com/Siornya/nonebot-plugin-R6States",
     type="application",
@@ -26,18 +32,26 @@ r6_key = on_command("r6key", aliases={"R6key", "R6DAPI", "r6dapi"}, priority=5, 
 r6_help = on_command("r6help", aliases={"R6help"}, priority=5, block=True)
 
 HELP_TEXT = (
-    "彩六干员数据查询\n"
-    "/r6 <id> [平台]   查询玩家干员数据（平台默认 uplay，可选 psn/xbl）\n"
+    "彩六数据查询\n"
+    "/r6 <id> [平台]   查询玩家数据（平台默认 uplay，可选 psn/xbl）\n"
     "/r6key <key>      设置本群/本人的 r6data API Key\n"
-    "/r6help           显示本帮助"
+    "/r6help           显示本帮助\n"
+    "Key 可在 https://r6data.com/ 免费获取；优先用你的个人 Key，没有则用群 Key"
 )
 
 
 def _scope_id(event: MessageEvent) -> str:
-    """群聊按群、私聊按人，作为 api-key 与统计的归属。"""
+    """设置 key 的归属：群聊按群、私聊按人。"""
     if isinstance(event, GroupMessageEvent):
         return str(event.group_id)
     return str(event.user_id)
+
+
+def _lookup_scopes(event: MessageEvent) -> list[str]:
+    """查询时的 key 候选顺序：个人优先，个人没设则回退到群。"""
+    if isinstance(event, GroupMessageEvent):
+        return [str(event.user_id), str(event.group_id)]
+    return [str(event.user_id)]
 
 
 @r6_help.handle()
@@ -49,7 +63,10 @@ async def _():
 async def _(event: MessageEvent, args: Message = CommandArg()):
     key = args.extract_plain_text().strip()
     if not key:
-        await r6_key.finish("请在命令后输入 API Key，例如：/r6key abcdef...")
+        await r6_key.finish(
+            "请在命令后输入 API Key，例如：/r6key abcdef...\n"
+            "没有的话可在 https://r6data.com/ 免费获取"
+        )
 
     scope = _scope_id(event)
     set_apikey(scope, key)
@@ -72,17 +89,27 @@ async def _(event: MessageEvent, args: Message = CommandArg()):
     if len(tokens) > 5:
         await r6.finish("一次最多查询 5 个 id")
 
-    scope = _scope_id(event)
+    scopes = _lookup_scopes(event)
 
-    # key 临近过期的轻提醒（只提示一次性信息，不阻断查询）。
-    age = get_apikey_age_days(scope)
+    # key 临近过期的轻提醒（针对实际命中的那个 key，不阻断查询）。
+    _, matched = resolve_apikey(scopes)
+    age = get_apikey_age_days(matched) if matched else None
     if age is not None and age >= KEY_TTL_DAYS:
         await r6.send(f"⚠️ 当前 API Key 已设置 {age:.0f} 天，可能已过期，如查询失败请 /r6key 重设")
 
     for player_id in tokens:
         try:
-            data = await get_operator_stats(player_id, scope, platform)
-            await r6.send(format_operator_stats(player_id, data))
+            data = await get_full_stats(
+                player_id, scopes, platform, season_year=plugin_config.current_season
+            )
+            if plugin_config.r6_output_image:
+                try:
+                    png = render_full_stats(player_id, data)
+                    await r6.send(MessageSegment.image(png))
+                    continue
+                except Exception as e:  # noqa: BLE001 - 渲染失败回退文本
+                    logger.warning(f"图片渲染失败，回退文本: {type(e).__name__}: {e}")
+            await r6.send(format_full_stats(player_id, data))
         except ServiceError as e:
             await r6.send(f"❌ {player_id}：{e.message}")
         except Exception as e:  # noqa: BLE001

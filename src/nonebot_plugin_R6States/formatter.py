@@ -1,10 +1,9 @@
-"""把 operatorStats 返回（顶层 ``operators`` 数组）格式化成可发送文本。
+"""把 fullStats 返回格式化成可发送文本。
 
-返回结构示例（每个干员一条）::
-
-    {"operator": "Bandit", "side": "Defender", "roundsPlayed": 1451,
-     "winPercent": 53.14, "kd": 0.86, "headshotPercent": 38.53,
-     "wins": 771, "losses": 680, "kills": 911, "deaths": 1065, ...}
+fullStats 顶层有三块：
+- ``operators``：干员明细（operator/side/roundsPlayed/winPercent/kd/headshotPercent...）
+- ``platform_families_full_profiles``：各 board(ranked/casual/...)的完整档案
+- ``data``：tracker 风格的 platformInfo / metadata(等级、通行证) / segments
 """
 from __future__ import annotations
 
@@ -14,40 +13,79 @@ from typing import Any
 TOP_N = 8
 
 _SIDE_CN = {"Attacker": "攻", "Defender": "防"}
+_BOARD_CN = {
+    "ranked": "排位", "casual": "休闲", "standard": "标准",
+    "event": "活动", "warmup": "热身",
+}
 
 
-def format_operator_stats(player_id: str, data: dict[str, Any], top_n: int = TOP_N) -> str:
-    operators = data.get("operators") if isinstance(data, dict) else None
-    if not operators:
-        return f"🎯 {player_id}：没有查询到干员数据"
+def _format_boards(profiles: list[dict[str, Any]]) -> list[str]:
+    """各 board 取最新赛季档案，输出概览行。"""
+    out: list[str] = []
+    for fam in profiles:
+        for board in fam.get("board_ids_full_profiles") or []:
+            fps = board.get("full_profiles") or []
+            if not fps:
+                continue
+            fp = max(fps, key=lambda f: f.get("season_id", 0))
+            p = fp.get("profile") or {}
+            wins, losses = p.get("wins", 0), p.get("losses", 0)
+            kills, deaths = p.get("kills", 0), p.get("deaths", 0)
+            wr = wins / (wins + losses) * 100 if (wins + losses) else 0
+            kd = kills / deaths if deaths else float(kills)
+            name = _BOARD_CN.get(board.get("board_id", ""), board.get("board_id", "?"))
+            out.append(
+                f"{name} RP{p.get('rank_points', 0)}(峰{p.get('max_rank_points', 0)}) "
+                f"胜负{wins}/{losses}({wr:.0f}%) KD{kd:.2f} 掉线{p.get('abandon', 0)}"
+            )
+    return out
 
+
+def _format_operators(operators: list[dict[str, Any]], top_n: int) -> list[str]:
     ranked = sorted(operators, key=lambda o: o.get("roundsPlayed", 0), reverse=True)
-
-    lines = [f"🎯 {player_id} 干员数据（按出场排序 Top {min(top_n, len(ranked))}）："]
+    out: list[str] = []
     for op in ranked[:top_n]:
         side = _SIDE_CN.get(op.get("side", ""), op.get("side", "?"))
-        lines.append(
+        out.append(
             f"{op.get('operator', '?')}({side}) "
             f"场{op.get('roundsPlayed', 0)} "
             f"胜{op.get('winPercent', 0)}% "
-            f"KD{op.get('kd', 0)} "
-            f"爆头{op.get('headshotPercent', 0)}%"
+            f"KD{op.get('kd', 0)}"
         )
-
-    # 聚合：用总量重算，避免对各干员的百分比直接做无权平均。
-    rounds = sum(o.get("roundsPlayed", 0) for o in operators)
-    wins = sum(o.get("wins", 0) for o in operators)
-    losses = sum(o.get("losses", 0) for o in operators)
+    # 聚合：用总量重算，避免对各干员百分比做无权平均
     kills = sum(o.get("kills", 0) for o in operators)
     deaths = sum(o.get("deaths", 0) for o in operators)
-    headshots = sum(o.get("headshots", 0) for o in operators)
-
-    win_rate = wins / (wins + losses) * 100 if (wins + losses) else 0
+    rounds = sum(o.get("roundsPlayed", 0) for o in operators)
     kd = kills / deaths if deaths else float(kills)
-    hs = headshots / kills * 100 if kills else 0
+    out.append(f"— 合计 {len(operators)} 干员 场{rounds} KD{kd:.2f}")
+    return out
 
-    lines.append(
-        f"— 合计 {len(operators)} 干员：场{rounds} "
-        f"胜率{win_rate:.1f}% KD{kd:.2f} 爆头{hs:.1f}%"
-    )
+
+def format_full_stats(player_id: str, data: dict[str, Any], top_n: int = TOP_N) -> str:
+    info = data.get("data") or {}
+    handle = (info.get("platformInfo") or {}).get("platformUserHandle") or player_id
+    meta = info.get("metadata") or {}
+
+    lines = [f"🎯 {handle} 数据快照"]
+
+    head_bits = []
+    if meta.get("clearanceLevel") is not None:
+        head_bits.append(f"等级{meta['clearanceLevel']}")
+    if meta.get("battlepassLevel") is not None:
+        head_bits.append(f"通行证{meta['battlepassLevel']}")
+    if head_bits:
+        lines.append("　".join(head_bits))
+
+    board_lines = _format_boards(data.get("platform_families_full_profiles") or [])
+    if board_lines:
+        lines.append("— 档案 —")
+        lines.extend(board_lines)
+
+    operators = data.get("operators") or []
+    if operators:
+        lines.append("— 干员 Top —")
+        lines.extend(_format_operators(operators, top_n))
+
+    if not board_lines and not operators:
+        return f"🎯 {handle}：没有查询到数据"
     return "\n".join(lines)

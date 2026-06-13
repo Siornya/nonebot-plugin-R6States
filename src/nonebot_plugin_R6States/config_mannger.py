@@ -3,8 +3,6 @@
 落盘格式（带设置时间戳，用于过期提醒；key 官方有效期约 1 个月）::
 
     {"apikeys": {"<id>": {"key": "...", "set_at": 1712345678.0}}}
-
-兼容旧格式 ``{"apikeys": {"<id>": "<key>"}}``（无时间戳）。
 """
 from __future__ import annotations
 
@@ -46,8 +44,6 @@ def _entry(target_id: str) -> Optional[dict[str, Any]]:
     raw = load_config()["apikeys"].get(target_id)
     if raw is None:
         return None
-    if isinstance(raw, str):  # 旧格式
-        return {"key": raw, "set_at": None}
     return raw
 
 
@@ -56,9 +52,21 @@ def get_apikey(target_id: str) -> Optional[str]:
     return entry["key"] if entry else None
 
 
+def resolve_apikey(scopes: list[str]) -> tuple[Optional[str], Optional[str]]:
+    """按候选顺序找第一个有 key 的归属，返回 (key, 命中的 scope)。
+
+    群聊传 [群号, 用户号]：群没设 key 时回退到个人 key。
+    """
+    for scope in scopes:
+        key = get_apikey(scope)
+        if key:
+            return key, scope
+    return None, None
+
+
 def get_apikey_age_days(target_id: str) -> Optional[float]:
     """key 已设置的天数；旧格式/未设置返回 None。"""
     entry = _entry(target_id)
-    if not entry or not entry.get("set_at"):
+    if not entry:
         return None
     return (time.time() - entry["set_at"]) / 86400

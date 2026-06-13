@@ -230,6 +230,31 @@ class Players:
             params["seasonYear"] = season_year
         return await self._client._get("/stats", params)
 
+    async def get_full_stats(self, name_on_platform: str, platform_type: str,
+                             season_year: Optional[str] = None,
+                             modes: Optional[str] = None) -> Any:
+        """完整快照 (type=fullStats)。单请求合并三套数据：
+
+        - ``operators``：等同 operatorStats
+        - ``platform_families_full_profiles``：各 board(ranked/casual/...)完整档案
+        - ``data``：tracker 风格的 metadata/segments/platformInfo(等级、段位段等)
+
+        modes: ranked|casual|unranked|quick-match|standard|all（默认 all）。
+        season_year: 如 "Y10S4" 或 "all"（默认 all，不按赛季过滤）。
+        """
+        if not name_on_platform or not platform_type:
+            raise ValueError("Missing required parameters: name_on_platform, platform_type")
+        params = {
+            "type": "fullStats",
+            "nameOnPlatform": name_on_platform,
+            "platformType": platform_type,
+        }
+        if season_year:
+            params["seasonYear"] = season_year
+        if modes:
+            params["modes"] = modes
+        return await self._client._get("/stats", params)
+
     async def get_seasonal_stats(self, name_on_platform: str,
                                  platform_type: str) -> Any:
         """当前赛季战绩 (type=seasonalStats)。"""

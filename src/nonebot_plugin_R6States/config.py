@@ -4,8 +4,9 @@ from pydantic import BaseModel
 
 
 class Config(BaseModel):
-    """插件配置占位。
+    #: 当前赛季代码（如 "Y10S4"）。查询默认按此赛季过滤；填 "all" 则不过滤、查生涯。
+    #: 在 .env 里用 CURRENT_SEASON=Y10S4 覆盖；每赛季更新一次即可。
+    current_season: str = "Y11S2"
 
-    api-key 走按群/按人的本地文件（见 config_mannger），不从环境读，
-    所以这里暂时没有字段。后续若加全局开关（如默认平台、文本/图片输出）再补。
-    """
+    #: 查询结果是否渲染成图片（失败时自动回退文本）。.env 用 R6_OUTPUT_IMAGE=false 关闭。
+    r6_output_image: bool = True

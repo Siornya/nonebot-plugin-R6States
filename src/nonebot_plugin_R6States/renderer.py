@@ -1,10 +1,3 @@
-"""把 fullStats 渲染成图片（PNG 字节）。
-
-- 双字体：拉丁/数字用 Mona Sans，汉字用 Noto Sans CJK，按字符分段、基线对齐。
-- 2x 超采样：按 SCALE 倍分辨率绘制，避免客户端放大时发虚。
-- 干员区为对齐表格，数字右对齐；攻/防用不同颜色。
-内容提取复用 formatter 的 _format_boards（档案行）；干员直接读结构化字段以便排版。
-"""
 from __future__ import annotations
 
 from io import BytesIO
@@ -39,7 +32,6 @@ _font_cache: dict[tuple[str, int, Optional[int]], ImageFont.FreeTypeFont] = {}
 
 
 def _font(path: str, size: int, weight: Optional[int] = None) -> ImageFont.FreeTypeFont:
-    """按字号取字体；weight 给定时尝试调可变字重（失败则忽略）。"""
     key = (path, size * _SCALE, weight)
     if key in _font_cache:
         return _font_cache[key]
@@ -158,10 +150,10 @@ def render_full_stats(player_id: str, data: dict[str, Any]) -> bytes:
         col_w = (_W - 2 * _PAD - gap) // 2
         lx, rx = p, p + col_w + gap
 
-        # 列头：攻 / 防
+        # 列头
         y += _ascent(19)
-        _draw(draw, lx, y, "攻", 19, _ATK, weight=700)
-        _draw(draw, rx, y, "防", 19, _DEF, weight=700)
+        _draw(draw, lx, y, "进攻方", 19, _ATK, weight=700)
+        _draw(draw, rx, y, "防守方", 19, _DEF, weight=700)
         y += _font(_NOTO, 19).getmetrics()[1] + 12 * _SCALE
 
         def _cell(cx: int, base: int, op: dict[str, Any]) -> None:

@@ -18,9 +18,21 @@ _BOARD_CN = {
     "event": "活动", "warmup": "热身",
 }
 
+#: 1000 起每档 100 分、每大段 5 小级；<1000 未定级，>=4500 冠军。
+_RANK_TIERS = ("紫铜", "青铜", "白银", "黄金", "铂金", "翡翠", "钻石")
+
+
+def rank_name(mmr: int) -> str:
+    if mmr < 1000:
+        return "未定级"
+    if mmr >= 4500:
+        return "冠军"
+    idx = (mmr - 1000) // 100
+    return f"{_RANK_TIERS[idx // 5]}{5 - idx % 5}"
+
 
 def _format_boards(profiles: list[dict[str, Any]]) -> list[str]:
-    """各 board 取最新赛季档案，输出概览行。"""
+    """各 board 取最新赛季档案，输出概览行；排位行补段位名。"""
     out: list[str] = []
     for fam in profiles:
         for board in fam.get("board_ids_full_profiles") or []:
@@ -33,9 +45,12 @@ def _format_boards(profiles: list[dict[str, Any]]) -> list[str]:
             kills, deaths = p.get("kills", 0), p.get("deaths", 0)
             wr = wins / (wins + losses) * 100 if (wins + losses) else 0
             kd = kills / deaths if deaths else float(kills)
-            name = _BOARD_CN.get(board.get("board_id", ""), board.get("board_id", "?"))
+            bid = board.get("board_id", "")
+            name = _BOARD_CN.get(bid, bid or "?")
+            rp = p.get("rank_points", 0)
+            rank_str = f"{rank_name(rp)} " if bid == "ranked" else ""
             out.append(
-                f"{name} RP{p.get('rank_points', 0)}(峰{p.get('max_rank_points', 0)}) "
+                f"{name} {rank_str}RP{rp}({p.get('max_rank_points', 0)}) "
                 f"胜负{wins}/{losses}({wr:.0f}%) KD{kd:.2f} 掉线{p.get('abandon', 0)}"
             )
     return out

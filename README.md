@@ -30,16 +30,10 @@
 
 可以直接将 `nonebot_plugin_R6States` 文件夹放入插件目录中。
 
-### 基础指令
+### 数据查询
 
 ```text
-/R6 <player_id>
-```
-
-### 多人查询
-
-```text
-/R6 -g <id1> <id2> ... <idN>
+/R6 <player_ids...>
 ```
 
 ### 帮助信息

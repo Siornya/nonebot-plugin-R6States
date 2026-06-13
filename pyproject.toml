@@ -1,6 +1,6 @@
 [project]
 name = "nonebot-plugin-R6States"
-version = "0.1.0"
+version = "1.0.0"
 description = "查询指定玩家的各项数据"
 authors = [
     {name = "Siornya", email = "wxh200607@outlook.com"},

@@ -9,8 +9,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: write
+      id-token: write   # PyPI 可信发布(OIDC)
+      contents: write   # 创建 GitHub Release
     steps:
       - uses: actions/checkout@v6
 
@@ -28,9 +28,25 @@ jobs:
         if: steps.version.outputs.VERSION != steps.version.outputs.TAG_VERSION
         run: exit 1
 
-      - name: Publish Package
+      # 给「丢进 plugins/ 的文件夹用户」准备：只打包插件目录本身
+      - name: Package plugin folder
         run: |
-          pdm publish
-          gh release upload --clobber ${{ steps.version.outputs.TAG_NAME }} dist/*.tar.gz dist/*.whl
+          cd src
+          zip -r "../nonebot_plugin_R6States-${{ steps.version.outputs.TAG_NAME }}.zip" \
+            nonebot_plugin_R6States \
+            -x '*/__pycache__/*' -x '*.pyc' -x 'nonebot_plugin_R6States/data/*'
+
+      # 给 pip 用户准备：构建并发布到 PyPI
+      - name: Publish to PyPI
+        run: pdm publish
+
+      # 创建 Release 并上传：文件夹 zip + wheel/sdist
+      - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.TAG_NAME }}" \
+            --title "${{ steps.version.outputs.TAG_NAME }}" \
+            --generate-notes \
+            "nonebot_plugin_R6States-${{ steps.version.outputs.TAG_NAME }}.zip" \
+            dist/*.whl dist/*.tar.gz

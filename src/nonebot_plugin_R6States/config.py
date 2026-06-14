@@ -11,3 +11,7 @@ class Config(BaseModel):
     # 查询结果渲染成图片，失败时自动回退文本
     # 在 .env 用 R6_OUTPUT_IMAGE 覆盖
     r6_output_image: bool = True
+
+    # 玩家数据本地缓存时长（分钟）。越大越省 API 用量，但数据越旧。
+    # 在 .env 用 R6_CACHE_MINUTES 覆盖
+    r6_cache_minutes: int = 45

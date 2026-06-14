@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import time
 from typing import Any, Optional
 
 import httpx
@@ -14,9 +15,6 @@ from .cache import JSONCache
 from .storage import PLAYER_CACHE_FILE
 from .r6data import R6Client, R6APIError
 from .config_mannger import resolve_apikey
-
-#: 玩家快照属于会变的数据，缓存 45 分钟即可显著降低 API 用量。
-FULL_STATS_TTL = 45 * 60
 
 VALID_PLATFORMS = ("uplay", "psn", "xbl")
 
@@ -57,6 +55,8 @@ async def get_full_stats(
     platform: str = "uplay",
     season_year: str | None = None,
     modes: str | None = None,
+    *,
+    ttl: float,
 ) -> dict[str, Any]:
     if platform not in VALID_PLATFORMS:
         raise ServiceError(f"平台无效，可选：{', '.join(VALID_PLATFORMS)}")
@@ -85,5 +85,8 @@ async def get_full_stats(
     except Exception as e:  # noqa: BLE001 - 网络等异常统一兜底
         raise ServiceError(f"请求失败：{type(e).__name__}") from e
 
-    await _cache.set(cache_key, data, FULL_STATS_TTL)
+    # 打上实际取数时间，随数据一起缓存（缓存命中时展示的就是这个原始取数时刻）
+    if isinstance(data, dict):
+        data["_fetched_at"] = time.time()
+    await _cache.set(cache_key, data, ttl)
     return data

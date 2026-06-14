@@ -7,10 +7,22 @@ fullStats 顶层有三块：
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
+from datetime import timezone, datetime, timedelta
 
 #: 默认展示出场最多的前 N 个干员
 TOP_N = 8
+
+#: 展示时间用东八区（CN bot）
+_CST = timezone(timedelta(hours=8))
+
+
+def fetched_label(data: dict[str, Any]) -> Optional[str]:
+    """数据实际取回时刻（随缓存保存），格式 '更新 06-14 17:30'；无则返回 None。"""
+    ts = data.get("_fetched_at")
+    if not ts:
+        return None
+    return "更新 " + datetime.fromtimestamp(ts, _CST).strftime("%m-%d %H:%M")
 
 _SIDE_CN = {"Attacker": "攻", "Defender": "防"}
 _BOARD_CN = {
@@ -103,4 +115,8 @@ def format_full_stats(player_id: str, data: dict[str, Any], top_n: int = TOP_N) 
 
     if not board_lines and not operators:
         return f"🎯 {handle}：没有查询到数据"
+
+    label = fetched_label(data)
+    if label:
+        lines.append(label)
     return "\n".join(lines)

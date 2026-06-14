@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .formatter import _format_boards
+from .formatter import _format_boards, fetched_label
 
 _ASSETS = Path(__file__).parent / "assets"
 _MONA = str(_ASSETS / "MonaSans.ttf")
@@ -187,6 +187,13 @@ def render_full_stats(player_id: str, data: dict[str, Any]) -> bytes:
         y += _ascent(22)
         _draw(draw, p, y, "没有查询到数据", 22, _GRAY)
         y += _font(_NOTO, 22).getmetrics()[1]
+
+    # 底部：数据实际取回时间（右下角，小字）
+    label = fetched_label(data)
+    if label:
+        y += 14 * _SCALE + _ascent(14)
+        _draw_right(draw, rcol, y, label, 14, _DIM)
+        y += _font(_NOTO, 14).getmetrics()[1]
 
     img = img.crop((0, 0, _W, y + _PAD))
     buf = BytesIO()

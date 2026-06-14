@@ -1,11 +1,6 @@
 """
-r6data.py — Python 移植版 r6-data.js (Players + Game)
+对 https://api.r6data.com/api 的封装，从官方 npm 包 `r6-data.js` 移植修改而来。
 
-对 https://api.r6data.com/api 的薄封装,异步 (httpx)。从官方 npm 包
-`r6-data.js` 移植而来;源码层逻辑长期稳定,只有下面 ``易变常量`` 区域会
-随赛季/平台调整,跟新版时基本只动那几行。
-
-依赖:  pip install httpx
 用法:
     from .r6data import R6Client
 
@@ -13,30 +8,11 @@ r6data.py — Python 移植版 r6-data.js (Players + Game)
     info = await r6.players.get_account_info("PlayerName", "uplay")
     ops  = await r6.game.get_operators(side="attacker")
     await r6.aclose()
-
-NoneBot 启动时检查版本(贴进插件 __init__.py):
-    from nonebot import get_driver, logger
-    from .r6data import check_latest_version, BASED_ON_VERSION
-
-    @get_driver().on_startup
-    async def _r6_version_check():
-        latest = await check_latest_version()
-        if latest and latest != BASED_ON_VERSION:
-            logger.warning(
-                f"r6data 移植基于 r6-data.js@{BASED_ON_VERSION}, "
-                f"上游最新为 {latest},建议核对是否有接口变化。"
-            )
 """
 
 from __future__ import annotations
-
 from typing import Any, Optional, Sequence, Mapping
-
 import httpx
-
-# ──────────────────────────────────────────────────────────────────────────
-# 易变常量 —— 跟随上游版本时,基本只需要改这一段
-# ──────────────────────────────────────────────────────────────────────────
 
 #: 本移植对标的 r6-data.js 版本。启动时与 npm 最新版比对。
 BASED_ON_VERSION = "3.1.7"

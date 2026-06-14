@@ -104,9 +104,13 @@ async def _(event: MessageEvent, args: Message = CommandArg()):
         await r6.send(f"⚠️ 当前 API Key 已设置 {age:.0f} 天，可能已过期，如查询失败请 /r6key 重设")
 
     # 并发取数（单个失败不连累其余），再按原顺序逐个发送
+    ttl = plugin_config.r6_cache_minutes * 60
     results = await asyncio.gather(
         *(
-            get_full_stats(pid, scopes, platform, season_year=plugin_config.current_season)
+            get_full_stats(
+                pid, scopes, platform,
+                season_year=plugin_config.current_season, ttl=ttl,
+            )
             for pid in tokens
         ),
         return_exceptions=True,

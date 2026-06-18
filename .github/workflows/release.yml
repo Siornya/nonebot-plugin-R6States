@@ -31,8 +31,7 @@ jobs:
       # 给「丢进 plugins/ 的文件夹用户」准备：只打包插件目录本身
       - name: Package plugin folder
         run: |
-          cd src
-          zip -r "../nonebot_plugin_R6States-${{ steps.version.outputs.TAG_NAME }}.zip" \
+          zip -r "nonebot_plugin_R6States-${{ steps.version.outputs.TAG_NAME }}.zip" \
             nonebot_plugin_R6States \
             -x '*/__pycache__/*' -x '*.pyc' -x 'nonebot_plugin_R6States/data/*'
 

@@ -24,7 +24,7 @@ build-backend = "pdm.backend"
 distribution = true
 
 [tool.pdm.build]
-includes = ["src"]
+includes = ["nonebot_plugin_R6States"]
 
 [tool.pdm.dev-dependencies]
 dev = [
@@ -69,5 +69,5 @@ typeCheckingMode = "basic"
 adapters = [
 
 ]
-plugin_dirs = ["src"]
+plugin_dirs = ["."]
 builtin_plugins = []

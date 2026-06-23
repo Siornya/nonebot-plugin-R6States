@@ -12,7 +12,7 @@ jobs:
       id-token: write   # PyPI 可信发布(OIDC)
       contents: write   # 创建 GitHub Release
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python

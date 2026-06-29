@@ -164,7 +164,3 @@ cython_debug/
 # CMake
 */cmake-build-debug/*
 */cmake-build-release/*
-# R6States 运行时本地数据（api keys / 缓存）
-data/
-api_key.json
-players.yaml

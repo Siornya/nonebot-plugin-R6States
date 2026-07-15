@@ -1,6 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from nonebot import require
 from pydantic import BaseModel
+
+require("nonebot_plugin_localstore")
+
+import nonebot_plugin_localstore as store
+
+API_KEY_FILE: Path = store.get_plugin_config_file("api_keys.json")
+PLAYER_CACHE_FILE: Path = store.get_plugin_cache_file("cache.json")
 
 
 class Config(BaseModel):

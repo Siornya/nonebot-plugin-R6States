@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any, Optional
 
-from .storage import API_KEY_FILE
+from .config import API_KEY_FILE
 
 #: 官方 key 有效期约 30 天，超过这个天数就在查询时给个提醒。
 KEY_TTL_DAYS = 30

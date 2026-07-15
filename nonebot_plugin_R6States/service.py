@@ -12,7 +12,7 @@ from typing import Any, Optional
 import httpx
 
 from .cache import JSONCache
-from .storage import PLAYER_CACHE_FILE
+from .config import PLAYER_CACHE_FILE
 from .r6data import R6Client, R6APIError
 from .config_mannger import resolve_apikey
 

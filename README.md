@@ -6,7 +6,7 @@
 
 * ✅ 通过 QQ 指令查询 R6 玩家战绩
 * ✅ 支持 **单人查询 / 多人查询**
-* ✅ 数据源自 [R6Data API](https://r6data.com/)
+* ✅ 数据源自 [R6Data API](https://r6.arenyze.com/)
 * ✅ 玩家数据缓存，降低 API 用量
 * ✅ 数据分析功能
 * ⚙️ 地图筛选 `-m / --map`

@@ -1,7 +1,8 @@
 """数据源（API 为主）+ 缓存层。
 
-对外暴露 ``get_full_stats``：先查本地缓存，未命中再打 r6data 的 fullStats，
-成功后回写缓存。错误统一转成 ``ServiceError``，由指令层决定怎么回话。
+`get_full_stats`
+先查本地缓存，未命中再请求 V2 fullstats，更新缓存，维持渲染层使用的快照结构
+错误统一转成 ``ServiceError``
 复用一个进程级共享的 httpx 客户端（连接池复用），指令层须在 on_shutdown 调 ``aclose``。
 """
 from __future__ import annotations
@@ -19,7 +20,7 @@ from .config_mannger import resolve_apikey
 VALID_PLATFORMS = ("uplay", "psn", "xbl")
 
 #: 免费申请 api-key 的入口，附在缺/失效提示里
-APIKEY_HELP = "可在 https://r6data.com/ 免费获取 Key，再用 /r6key <key> 绑定"
+APIKEY_HELP = "前往 https://r6.arenyze.com/ 获取免费 Key，再用 /r6key <key> 绑定"
 
 _cache = JSONCache(PLAYER_CACHE_FILE)
 
@@ -65,14 +66,14 @@ async def get_full_stats(
     if not api_key:
         raise ServiceError(f"未设置 API Key。{APIKEY_HELP}")
 
-    cache_key = f"fullStats:{platform}:{season_year or 'all'}:{modes or 'all'}:{player_id.lower()}"
+    cache_key = f"fullStats:v2:{platform}:{season_year or 'all'}:{modes or 'all'}:{player_id.lower()}"
     cached = await _cache.get(cache_key)
     if cached is not None:
         return cached
 
     try:
         r6 = R6Client(api_key=api_key, client=_client())
-        data = await r6.players.get_full_stats(
+        response = await r6.players.get_full_stats(
             player_id, platform, season_year=season_year, modes=modes
         )
     except R6APIError as e:
@@ -85,8 +86,11 @@ async def get_full_stats(
     except Exception as e:  # noqa: BLE001 - 网络等异常统一兜底
         raise ServiceError(f"请求失败：{type(e).__name__}") from e
 
+    if not isinstance(response, dict) or not isinstance(response.get("fullStats"), dict):
+        raise ServiceError("API 返回格式异常：缺少 fullStats 数据")
+    data = dict(response["fullStats"])
+
     # 打上实际取数时间，随数据一起缓存（缓存命中时展示的就是这个原始取数时刻）
-    if isinstance(data, dict):
-        data["_fetched_at"] = time.time()
+    data["_fetched_at"] = time.time()
     await _cache.set(cache_key, data, ttl)
     return data

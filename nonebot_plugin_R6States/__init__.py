@@ -70,14 +70,14 @@ async def _(event: MessageEvent, args: Message = CommandArg()):
     key = args.extract_plain_text().strip()
     if not key:
         await r6_key.finish(
-            "请在命令后输入 API Key，例如：/r6key <key>\n"
-            "没有的话可在 https://r6data.com/ 免费获取"
+            "请在命令后输入 API key: /r6key <key>\n"
+            "可在 https://r6.arenyze.com/ 获取"
         )
 
     scope = _scope_id(event)
     set_apikey(scope, key)
     where = "本群" if isinstance(event, GroupMessageEvent) else "个人"
-    await r6_key.finish(f"✅ 已设置{where} API Key（官方有效期约 {KEY_TTL_DAYS} 天）")
+    await r6_key.finish(f"✅ 已设置{where} API Key（官方有效期约90天）")
 
 
 @r6.handle()
@@ -100,7 +100,7 @@ async def _(event: MessageEvent, args: Message = CommandArg()):
     # key 临近过期的轻提醒（针对实际命中的那个 key，不阻断查询）。
     _, matched = resolve_apikey(scopes)
     age = get_apikey_age_days(matched) if matched else None
-    if age is not None and age >= KEY_TTL_DAYS:
+    if age is not None and age >= 90:
         await r6.send(f"⚠️ 当前 API Key 已设置 {age:.0f} 天，可能已过期，如查询失败请 /r6key 重设")
 
     # 并发取数（单个失败不连累其余），再按原顺序逐个发送

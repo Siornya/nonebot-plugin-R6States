@@ -1,201 +1,346 @@
+"""离线战绩卡片：数据整理与绘图分离，所有坐标采用逻辑像素。"""
 from __future__ import annotations
 
+import math
+from dataclasses import dataclass
 from io import BytesIO
-from typing import Any, Optional
 from pathlib import Path
+from typing import Any, Optional
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .formatter import _format_boards, fetched_label
+from .formatter import fetched_label, rank_name
 
 _ASSETS = Path(__file__).parent / "assets"
 _MONA = str(_ASSETS / "MonaSans.ttf")
 _NOTO = str(_ASSETS / "NotoSansSC.ttf")
 
-# 配色
-_BG = (24, 27, 33)
-_WHITE = (240, 242, 245)
-_GRAY = (140, 146, 156)
-_DIM = (96, 102, 112)
-_ACCENT = (240, 165, 0)
-_BODY = (210, 214, 220)
-_LINE = (44, 49, 58)
-_ATK = (236, 122, 80)   # 攻
-_DEF = (94, 160, 232)   # 防
+_BG = (16, 20, 29)
+_SURFACE = (25, 31, 43)
+_INSET = (20, 26, 37)
+_WHITE = (241, 245, 251)
+_BODY = (208, 217, 231)
+_GRAY = (153, 169, 191)
+_DIM = (119, 138, 162)
+_LINE = (43, 55, 74)
+_ACCENT = (244, 187, 80)
+_ATK = (243, 142, 112)
+_DEF = (113, 182, 245)
 
-_SCALE = 2              # 超采样倍率
-_W = 760 * _SCALE
-_PAD = 36 * _SCALE
-_PER_SIDE = 4           # 攻/防各展示几个干员
-
+_SCALE = 2
+_WIDTH = 760
+_PAD = 28
+_CONTENT = _WIDTH - 2 * _PAD
+_PER_SIDE = 4
+_BOARD_HEIGHT = 112
+_ROW_HEIGHT = 38
+_BOARD_NAMES = {
+    "ranked": "排位", "casual": "休闲", "standard": "标准",
+    "unranked": "非排位", "quick-match": "快速比赛",
+    "event": "活动", "warmup": "热身",
+}
 _font_cache: dict[tuple[str, int, Optional[int]], ImageFont.FreeTypeFont] = {}
 
 
 def _font(path: str, size: int, weight: Optional[int] = None) -> ImageFont.FreeTypeFont:
     key = (path, size * _SCALE, weight)
-    if key in _font_cache:
-        return _font_cache[key]
-    f = ImageFont.truetype(path, size * _SCALE)
-    if weight is not None:
-        try:
-            vals = []
-            for ax in f.get_variation_axes():
-                name = ax.get("name", b"")
-                name = name.decode() if isinstance(name, bytes) else name
-                vals.append(weight if name.lower() == "weight" else ax.get("default", 0))
-            f.set_variation_by_axes(vals)
-        except Exception:  # noqa: BLE001 - 非可变字体或轴缺失时退回默认实例
-            pass
-    _font_cache[key] = f
-    return f
-
-
-def _is_cjk(ch: str) -> bool:
-    return "一" <= ch <= "鿿" or "　" <= ch <= "〿" or "＀" <= ch <= "￯"
+    if key not in _font_cache:
+        font = ImageFont.truetype(path, size * _SCALE)
+        if weight is not None:
+            try:
+                values = []
+                for axis in font.get_variation_axes():
+                    name = axis.get("name", b"")
+                    name = name.decode() if isinstance(name, bytes) else name
+                    values.append(weight if name.lower() == "weight" else axis.get("default", 0))
+                font.set_variation_by_axes(values)
+            except Exception:  # noqa: BLE001 - 静态字体无需设置可变轴
+                pass
+        _font_cache[key] = font
+    return _font_cache[key]
 
 
 def _runs(text: str) -> list[tuple[str, bool]]:
     out: list[tuple[str, bool]] = []
-    cur, cur_cjk = "", None
-    for ch in text:
-        c = _is_cjk(ch)
-        if cur and c != cur_cjk:
-            out.append((cur, cur_cjk))  # type: ignore[arg-type]
-            cur = ""
-        cur, cur_cjk = cur + ch, c
-    if cur:
-        out.append((cur, cur_cjk))  # type: ignore[arg-type]
+    for char in text:
+        cjk = "一" <= char <= "鿿" or "　" <= char <= "〿" or "＀" <= char <= "￯"
+        if out and out[-1][1] == cjk:
+            out[-1] = (out[-1][0] + char, cjk)
+        else:
+            out.append((char, cjk))
     return out
 
 
-def _measure(text: str, size: int, weight: Optional[int] = None) -> int:
-    return sum(
-        int(_font(_NOTO if cjk else _MONA, size, weight).getlength(run))
-        for run, cjk in _runs(text)
-    )
+def _measure(text: str, size: int, weight: Optional[int] = None) -> float:
+    return sum(_font(_NOTO if cjk else _MONA, size, weight).getlength(run)
+               for run, cjk in _runs(text)) / _SCALE
 
 
-def _draw(draw: ImageDraw.ImageDraw, x: int, baseline: int, text: str,
-          size: int, fill: tuple[int, int, int], weight: Optional[int] = None) -> int:
-    for run, cjk in _runs(text):
-        f = _font(_NOTO if cjk else _MONA, size, weight)
-        draw.text((x, baseline), run, font=f, fill=fill, anchor="ls")
-        x += int(f.getlength(run))
-    return x
+def _number(value: Any) -> float:
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else 0.0
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
 
 
-def _draw_right(draw: ImageDraw.ImageDraw, right_x: int, baseline: int, text: str,
-                size: int, fill: tuple[int, int, int], weight: Optional[int] = None) -> None:
-    _draw(draw, right_x - _measure(text, size, weight), baseline, text, size, fill, weight)
+def _count(value: Any) -> str:
+    return f"{int(_number(value)):,}"
 
 
-def _ascent(size: int) -> int:
-    return _font(_NOTO, size).getmetrics()[0]
+def _ratio(kills: float, deaths: float) -> float:
+    # 与文本版本保持一致：无死亡时直接显示击杀数。
+    return kills / deaths if deaths else kills
+
+
+@dataclass(frozen=True)
+class _Board:
+    mode: str
+    profile: dict[str, Any]
+
+    def value(self, key: str) -> float:
+        return _number(self.profile.get(key))
+
+    @property
+    def ranked(self) -> bool:
+        return self.mode == "ranked"
+
+
+def _boards(data: dict[str, Any]) -> list[_Board]:
+    """沿用旧版规则：每个平台的每种模式取最新赛季档案。"""
+    result = []
+    for family in data.get("platform_families_full_profiles") or []:
+        for board in family.get("board_ids_full_profiles") or []:
+            profiles = board.get("full_profiles") or []
+            if profiles:
+                latest = max(profiles, key=lambda item: _number(item.get("season_id")))
+                result.append(_Board(board.get("board_id") or "未知模式", latest.get("profile") or {}))
+    return sorted(result, key=lambda item: not item.ranked)
+
+
+class _Canvas:
+    """封装缩放、字体回退、宽度限制与常用卡片组件。"""
+
+    def __init__(self, height: int) -> None:
+        self.image = Image.new("RGB", (_WIDTH * _SCALE, height * _SCALE), _BG)
+        self.draw = ImageDraw.Draw(self.image)
+
+    def rect(self, box: tuple[float, float, float, float], color: tuple[int, int, int],
+             radius: int = 0, outline: Optional[tuple[int, int, int]] = None) -> None:
+        coords = tuple(round(value * _SCALE) for value in box)
+        self.draw.rounded_rectangle(coords, radius=radius * _SCALE,
+                                    fill=color, outline=outline, width=_SCALE)
+
+    def line(self, x: float, y: float, width: float, color: tuple[int, int, int] = _LINE) -> None:
+        self.draw.line(((round(x * _SCALE), round(y * _SCALE)),
+                        (round((x + width) * _SCALE), round(y * _SCALE))),
+                       fill=color, width=_SCALE)
+
+    def text(self, x: float, baseline: float, text: Any, size: int = 16,
+             color: tuple[int, int, int] = _BODY, weight: Optional[int] = 400,
+             width: Optional[float] = None, align: str = "left") -> None:
+        text = str(text)
+        if width is not None:
+            min_size = max(10, size - 4)
+            while size > min_size and _measure(text, size, weight) > width:
+                size -= 1
+            if _measure(text, size, weight) > width:
+                while text and _measure(text + "…", size, weight) > width:
+                    text = text[:-1]
+                text += "…"
+        if align == "right":
+            x -= _measure(text, size, weight)
+        elif align == "center":
+            x -= _measure(text, size, weight) / 2
+        pen = x * _SCALE
+        for run, cjk in _runs(text):
+            font = _font(_NOTO if cjk else _MONA, size, weight)
+            self.draw.text((round(pen), round(baseline * _SCALE)), run,
+                           font=font, fill=color, anchor="ls")
+            pen += font.getlength(run)
+
+    def panel(self, x: int, y: int, width: int, height: int) -> None:
+        self.rect((x, y + 3, x + width, y + height + 3), (11, 15, 23), radius=14)
+        self.rect((x, y, x + width, y + height), _SURFACE, radius=14, outline=_LINE)
+
+    def pill(self, right: int, top: int, text: str, color: tuple[int, int, int] = _GRAY) -> int:
+        width = math.ceil(_measure(text, 13, 600)) + 22
+        left = right - width
+        self.rect((left, top, right, top + 26), _INSET, radius=7, outline=_LINE)
+        self.text(left + 11, top + 18, text, 13, color, weight=600)
+        return left - 8
+
+    def png(self) -> bytes:
+        output = BytesIO()
+        self.image.save(output, format="PNG")
+        return output.getvalue()
+
+
+def _header(canvas: _Canvas, player_id: str, data: dict[str, Any]) -> None:
+    info = data.get("data") or {}
+    handle = (info.get("platformInfo") or {}).get("platformUserHandle") or player_id
+    metadata = info.get("metadata") or {}
+    # 抽象斜切背景与小型 R6 标志均由本地几何图形绘制。
+    canvas.draw.polygon([(point[0] * _SCALE, point[1] * _SCALE)
+                         for point in ((_WIDTH - 170, 0), (_WIDTH, 0),
+                                       (_WIDTH, 93), (_WIDTH - 240, 93))],
+                        fill=(22, 28, 40))
+    canvas.rect((_PAD, 0, _PAD + 88, 3), _ACCENT)
+    canvas.rect((_PAD, 33, _PAD + 40, 73), _ACCENT, radius=10)
+    canvas.text(_PAD + 20, 60, "R6", 21, _BG, weight=800, align="center")
+    left = _PAD + 56
+    canvas.text(left, 29, "PLAYER REPORT", 11, _ACCENT, weight=700)
+    right = _WIDTH - _PAD
+    for key, prefix in (("battlepassLevel", "BP"), ("clearanceLevel", "LV")):
+        if metadata.get(key) is not None:
+            right = canvas.pill(right, 38, f"{prefix} {_count(metadata[key])}")
+    canvas.text(left, 63, handle, 31, _WHITE, weight=700, width=right - left - 12)
+
+
+def _section(canvas: _Canvas, y: int, title: str, detail: str) -> None:
+    canvas.rect((_PAD, y + 5, _PAD + 3, y + 22), _ACCENT, radius=1)
+    canvas.text(_PAD + 12, y + 21, title, 18, _WHITE, weight=700)
+    canvas.text(_WIDTH - _PAD, y + 20, detail, 12, _DIM, align="right", width=440)
+
+
+def _board_card(canvas: _Canvas, y: int, board: _Board) -> None:
+    canvas.panel(_PAD, y, _CONTENT, _BOARD_HEIGHT)
+    left, right = _PAD + 18, _WIDTH - _PAD - 18
+    color = _ACCENT if board.ranked else _DEF
+    canvas.rect((left, y + 15, left + 6, y + 21), color, radius=3)
+    title = _BOARD_NAMES.get(board.mode, board.mode)
+    canvas.text(left + 14, y + 26, title, 16, color, weight=700, width=200)
+    if board.ranked:
+        canvas.text(right, y + 26, rank_name(int(board.value("rank_points"))),
+                    16, _WHITE, weight=600, align="right", width=260)
+    else:
+        canvas.text(right, y + 25, "PLAYLIST STATS", 10, _DIM, align="right")
+    canvas.line(left, y + 36, right - left)
+
+    wins, losses = board.value("wins"), board.value("losses")
+    matches = wins + losses
+    kd = _ratio(board.value("kills"), board.value("deaths"))
+    rate = wins / matches * 100 if matches else 0
+    metrics = [
+        ("RP" if board.ranked else "击杀", _count(board.value("rank_points" if board.ranked else "kills"))),
+        ("KD", f"{kd:.2f}"), ("胜率", f"{rate:.1f}%"), ("胜负场次", _count(matches)),
+    ]
+    cell_width = (right - left) / len(metrics)
+    for index, (label, value) in enumerate(metrics):
+        x = left + index * cell_width
+        canvas.text(x, y + 53, label, 11, _GRAY)
+        canvas.text(x, y + 79, value, 25, color if index == 0 else _WHITE,
+                    weight=700, width=cell_width - 16)
+        if index:
+            canvas.draw.line(((round((x - 12) * _SCALE), (y + 46) * _SCALE),
+                              (round((x - 12) * _SCALE), (y + 79) * _SCALE)),
+                             fill=_LINE, width=_SCALE)
+    details = f"胜 {_count(wins)}  /  负 {_count(losses)}"
+    if board.ranked:
+        details += f"    ·    最高 RP {_count(board.value('max_rank_points'))}"
+    details += (f"    ·    K/D {_count(board.value('kills'))}/{_count(board.value('deaths'))}"
+                f"    ·    掉线 {_count(board.value('abandon'))}")
+    canvas.text(left, y + 101, details, 11, _DIM, width=right - left)
+
+
+def _operator_card(canvas: _Canvas, x: int, y: int, width: int, height: int,
+                   title: str, operators: list[dict[str, Any]], color: tuple[int, int, int]) -> None:
+    canvas.panel(x, y, width, height)
+    left, right = x + 16, x + width - 16
+    canvas.text(left, y + 27, title, 16, color, weight=700)
+    canvas.text(right, y + 26, "TOP 4", 10, _DIM, weight=600, align="right")
+    canvas.line(left, y + 38, right - left)
+    rounds_x, win_x = right - 123, right - 56
+    canvas.text(left, y + 56, "干员", 11, _DIM)
+    for column, label in ((rounds_x, "回合"), (win_x, "胜率"), (right, "KD")):
+        canvas.text(column, y + 56, label, 11, _DIM, align="right")
+
+    top = sorted(operators, key=lambda item: _number(item.get("roundsPlayed")), reverse=True)[:_PER_SIDE]
+    peak = max((_number(item.get("roundsPlayed")) for item in top), default=0)
+    name_width = rounds_x - left - 40
+    for index, operator in enumerate(top):
+        baseline = y + 82 + index * _ROW_HEIGHT
+        canvas.text(left, baseline, operator.get("operator") or "?", 16, _BODY,
+                    weight=600, width=name_width)
+        canvas.text(rounds_x, baseline, _count(operator.get("roundsPlayed")),
+                    13, _GRAY, align="right", width=36)
+        canvas.text(win_x, baseline, f"{_number(operator.get('winPercent')):.1f}%",
+                    13, _BODY, align="right", width=59)
+        canvas.text(right, baseline, f"{_number(operator.get('kd')):.2f}",
+                    17, _WHITE, weight=700, align="right", width=49)
+        # 出场比例条只反映本侧 Top 4 的相对出场次数，不作为胜率。
+        canvas.rect((left, baseline + 9, left + name_width, baseline + 11), _LINE, radius=1)
+        share = min(1.0, max(0.0, _number(operator.get("roundsPlayed")) / peak)) if peak else 0
+        if share:
+            canvas.rect((left, baseline + 9, left + name_width * share, baseline + 11), color, radius=1)
+    if not top:
+        canvas.text(x + width / 2, y + 82, "暂无干员数据", 14, _DIM, align="center")
+
+    kills = sum(_number(item.get("kills")) for item in operators)
+    deaths = sum(_number(item.get("deaths")) for item in operators)
+    rounds = sum(_number(item.get("roundsPlayed")) for item in operators)
+    canvas.line(left, y + height - 34, right - left)
+    canvas.text(left, y + height - 15, f"总回合 {_count(rounds)}", 11, _DIM, width=width - 145)
+    canvas.text(right, y + height - 15, f"KD {_ratio(kills, deaths):.2f}",
+                12, color, weight=600, align="right", width=110)
 
 
 def render_full_stats(player_id: str, data: dict[str, Any]) -> bytes:
-    info = data.get("data") or {}
-    handle = (info.get("platformInfo") or {}).get("platformUserHandle") or player_id
-    meta = info.get("metadata") or {}
-
-    # 画在足够高的画布上，最后按实际内容裁剪
-    img = Image.new("RGB", (_W, 1600 * _SCALE), _BG)
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([(0, 0), (_W, 6 * _SCALE)], fill=_ACCENT)
-
-    p = _PAD
-    rcol = _W - _PAD
-    y = _PAD + 8 * _SCALE
-
-    # ── 头部：玩家名 + 等级/通行证 ──
-    y += _ascent(38)
-    _draw(draw, p, y, handle, 38, _WHITE, weight=700)
-    bits = []
-    if meta.get("clearanceLevel") is not None:
-        bits.append(f"Lv {meta['clearanceLevel']}")
-    if meta.get("battlepassLevel") is not None:
-        bits.append(f"BP {meta['battlepassLevel']}")
-    if bits:
-        _draw_right(draw, rcol, y, "  ".join(bits), 20, _GRAY)
-    y += _font(_NOTO, 38).getmetrics()[1] + 14 * _SCALE
-
-    def section(title: str) -> None:
-        nonlocal y
-        y += 16 * _SCALE
-        draw.line([(p, y), (rcol, y)], fill=_LINE, width=1 * _SCALE)
-        y += 14 * _SCALE + _ascent(22)
-        _draw(draw, p, y, title, 22, _ACCENT, weight=700)
-        y += _font(_NOTO, 22).getmetrics()[1] + 10 * _SCALE
-
-    # ── 档案 ──
-    boards = _format_boards(data.get("platform_families_full_profiles") or [])
-    if boards:
-        section("档案")
-        for line in boards:
-            y += _ascent(21)
-            _draw(draw, p, y, line, 21, _BODY)
-            y += _font(_NOTO, 21).getmetrics()[1] + 8 * _SCALE
-
-    # ── 干员：攻/防双列，各取出场前 4 ──
+    boards = _boards(data)
     operators = data.get("operators") or []
+    sides = [
+        ("进攻方", [item for item in operators if item.get("side") == "Attacker"], _ATK),
+        ("防守方", [item for item in operators if item.get("side") == "Defender"], _DEF),
+    ]
+    row_count = max((min(len(items), _PER_SIDE) for _, items, _ in sides), default=0)
+    operator_height = 96 + max(1, row_count) * _ROW_HEIGHT
+
+    # 先计算实际布局高度，再创建画布；不依赖固定高度或事后裁剪。
+    y = 88
+    board_title = y
+    board_positions = []
+    if boards:
+        y += 34
+        for board in boards:
+            board_positions.append((y, board))
+            y += _BOARD_HEIGHT + 10
+        y += 4
+    operator_title = y
+    operator_y = y + 34
     if operators:
-        section("干员 Top")
-        by_rounds = lambda o: o.get("roundsPlayed", 0)  # noqa: E731
-        atks = sorted((o for o in operators if o.get("side") == "Attacker"),
-                      key=by_rounds, reverse=True)[:_PER_SIDE]
-        defs = sorted((o for o in operators if o.get("side") == "Defender"),
-                      key=by_rounds, reverse=True)[:_PER_SIDE]
-
-        gap = 48 * _SCALE
-        col_w = (_W - 2 * _PAD - gap) // 2
-        lx, rx = p, p + col_w + gap
-
-        # 列头
-        y += _ascent(19)
-        _draw(draw, lx, y, "进攻方", 19, _ATK, weight=700)
-        _draw(draw, rx, y, "防守方", 19, _DEF, weight=700)
-        y += _font(_NOTO, 19).getmetrics()[1] + 12 * _SCALE
-
-        def _cell(cx: int, base: int, op: dict[str, Any]) -> None:
-            r = cx + col_w
-            nx = _draw(draw, cx, base, op.get("operator", "?"), 21, _BODY, weight=600)
-            _draw(draw, nx + 6 * _SCALE, base, f"·{op.get('roundsPlayed', 0)}", 15, _DIM)
-            _draw_right(draw, r, base, f"{op.get('kd', 0)}", 21, _WHITE, weight=700)
-            _draw_right(draw, r - 78 * _SCALE, base, f"{op.get('winPercent', 0)}%", 17, _BODY)
-
-        for i in range(max(len(atks), len(defs))):
-            base = y + _ascent(21)
-            if i < len(atks):
-                _cell(lx, base, atks[i])
-            if i < len(defs):
-                _cell(rx, base, defs[i])
-            y = base + _font(_NOTO, 21).getmetrics()[1] + 11 * _SCALE
-
-        # 合计（全部干员）
-        kills = sum(o.get("kills", 0) for o in operators)
-        deaths = sum(o.get("deaths", 0) for o in operators)
-        rounds = sum(o.get("roundsPlayed", 0) for o in operators)
-        kd = kills / deaths if deaths else float(kills)
-        y += 6 * _SCALE
-        draw.line([(p, y), (rcol, y)], fill=_LINE, width=1 * _SCALE)
-        y += 12 * _SCALE + _ascent(19)
-        _draw(draw, p, y, f"合计 {len(operators)} 干员 · 场{rounds}", 19, _GRAY)
-        _draw_right(draw, rcol, y, f"KD {kd:.2f}", 19, _GRAY)
-        y += _font(_NOTO, 19).getmetrics()[1]
-
+        y = operator_y + operator_height + 18
+    empty_y = y
     if not boards and not operators:
-        y += _ascent(22)
-        _draw(draw, p, y, "没有查询到数据", 22, _GRAY)
-        y += _font(_NOTO, 22).getmetrics()[1]
+        y += 120
+    footer_y = y
+    canvas = _Canvas(footer_y + 48)
+    _header(canvas, player_id, data)
 
-    # 底部：数据实际取回时间（右下角，小字）
-    label = fetched_label(data)
-    if label:
-        y += 14 * _SCALE + _ascent(14)
-        _draw_right(draw, rcol, y, label, 14, _DIM)
-        y += _font(_NOTO, 14).getmetrics()[1]
+    season = str(data.get("_season_year") or data.get("seasonYear") or "未知")
+    if boards:
+        detail = "各模式最新赛季档案" if season.lower() == "all" else "按模式展示战绩"
+        _section(canvas, board_title, "战绩概览", detail)
+        for top, board in board_positions:
+            _board_card(canvas, top, board)
+    if operators:
+        kills = sum(_number(item.get("kills")) for item in operators)
+        deaths = sum(_number(item.get("deaths")) for item in operators)
+        _section(canvas, operator_title, "干员表现",
+                 f"出场排序 · 全部 {len(operators)} 干员 · KD {_ratio(kills, deaths):.2f}")
+        gap = 16
+        width = (_CONTENT - gap) // 2
+        for index, (title, items, color) in enumerate(sides):
+            _operator_card(canvas, _PAD + index * (width + gap), operator_y,
+                           width, operator_height, title, items, color)
+    if not boards and not operators:
+        canvas.panel(_PAD, empty_y, _CONTENT, 100)
+        canvas.text(_WIDTH / 2, empty_y + 42, "暂时没有战绩数据", 22,
+                    _WHITE, weight=600, align="center")
+        canvas.text(_WIDTH / 2, empty_y + 70, "请确认玩家名、平台和查询赛季", 14, _GRAY, align="center")
 
-    img = img.crop((0, 0, _W, y + _PAD))
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
+    # 页脚共用一行，左侧真实取数时间，右侧实际查询的赛季过滤条件。
+    canvas.line(_PAD, footer_y, _CONTENT)
+    canvas.text(_PAD, footer_y + 28, fetched_label(data) or "尚无更新时间", 12, _DIM, width=350)
+    label = "全部赛季" if season.lower() == "all" else f"赛季 {season}"
+    canvas.pill(_WIDTH - _PAD, footer_y + 10, label)
+    return canvas.png()

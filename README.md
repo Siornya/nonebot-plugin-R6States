@@ -8,6 +8,8 @@
 * ✅ 支持 **单人查询 / 多人查询**
 * ✅ 数据源自 [R6Data API](https://r6.arenyze.com/)
 * ✅ 玩家数据缓存，降低 API 用量
+* ✅ 图片左下角显示更新时间，右下角显示查询赛季
+* ✅ 模式战绩卡片、攻防干员 Top 4 与出场比例条，使用本地字体离线绘图
 * ✅ 数据分析功能
 * ⚙️ 地图筛选 `-m / --map`
 
@@ -27,7 +29,7 @@
 ## 环境配置
 
 ```
-CURRENT_SEASON = "Y11S2"
+CURRENT_SEASON = "Y11S3"
 R6_OUTPUT_IMAGE = True
 R6_CACHE_MINUTES = 45
 ```

@@ -31,7 +31,8 @@ _http: Optional[httpx.AsyncClient] = None
 def _client() -> httpx.AsyncClient:
     global _http
     if _http is None or _http.is_closed:
-        _http = httpx.AsyncClient(timeout=15.0)
+        # 上游 fullstats 响应较慢：读取等待 60 秒，其余阶段仍为 15 秒。
+        _http = httpx.AsyncClient(timeout=httpx.Timeout(15.0, read=60.0))
     return _http
 
 
@@ -69,6 +70,8 @@ async def get_full_stats(
     cache_key = f"fullStats:v2:{platform}:{season_year or 'all'}:{modes or 'all'}:{player_id.lower()}"
     cached = await _cache.get(cache_key)
     if cached is not None:
+        # 旧缓存没有赛季标记时，按命中的缓存键补齐，不额外请求 API。
+        cached.setdefault("_season_year", season_year or "all")
         return cached
 
     try:
@@ -89,6 +92,8 @@ async def get_full_stats(
     if not isinstance(response, dict) or not isinstance(response.get("fullStats"), dict):
         raise ServiceError("API 返回格式异常：缺少 fullStats 数据")
     data = dict(response["fullStats"])
+    # 记录查询的赛季过滤条件；all 不能误标成响应中的某个参考赛季。
+    data["_season_year"] = season_year or "all"
 
     # 打上实际取数时间，随数据一起缓存（缓存命中时展示的就是这个原始取数时刻）
     data["_fetched_at"] = time.time()

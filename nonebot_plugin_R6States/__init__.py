@@ -11,7 +11,6 @@ from .service import VALID_PLATFORMS, ServiceError, aclose, get_full_stats
 from .formatter import format_full_stats
 from .renderer import render_full_stats
 from .config_mannger import (
-    KEY_TTL_DAYS,
     set_apikey,
     resolve_apikey,
     get_apikey_age_days,

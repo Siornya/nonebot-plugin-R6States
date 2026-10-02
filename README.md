@@ -26,11 +26,11 @@
 
 ## 环境配置
 
+```
 CURRENT_SEASON = "Y11S2"
-
 R6_OUTPUT_IMAGE = True
-
 R6_CACHE_MINUTES = 45
+```
 
 ## 参考运行环境
 

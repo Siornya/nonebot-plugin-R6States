@@ -4,8 +4,6 @@
   <p><img src="https://github.com/A-kirami/nonebot-plugin-template/blob/resources/NoneBotPlugin.svg" width="240" alt="NoneBotPluginText"></p>
 </div>
 
-<div align="center">
-
 # nonebot-plugin-R6States
 
 基于 **NoneBot2** 的《彩虹六号：围攻》战绩查询插件

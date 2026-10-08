@@ -1,17 +1,21 @@
+<div align="center">
+  <a href="https://v2.nonebot.dev/store"><img src="https://github.com/A-kirami/nonebot-plugin-template/blob/resources/nbp_logo.png" width="180" height="180" alt="NoneBotPluginLogo"></a>
+  <br>
+  <p><img src="https://github.com/A-kirami/nonebot-plugin-template/blob/resources/NoneBotPlugin.svg" width="240" alt="NoneBotPluginText"></p>
+</div>
+
+<div align="center">
+
 # nonebot-plugin-R6States
 
-一个基于 **NoneBot2** 的《彩虹六号：围攻》战绩查询插件
+基于 **NoneBot2** 的《彩虹六号：围攻》战绩查询插件
 
-## 功能特性
+## Feature 功能特性
 
-* ✅ 通过 QQ 指令查询 R6 玩家战绩
-* ✅ 支持 **单人查询 / 多人查询**
+* ✅ 通过指令查询**单人 / 多人** R6 玩家战绩
 * ✅ 数据源自 [R6Data API](https://r6.arenyze.com/)
-* ✅ 玩家数据缓存，降低 API 用量
-* ✅ 图片左下角显示更新时间，右下角显示查询赛季
+* ✅ 玩家数据缓存，图片左下角显示更新时间，右下角显示查询赛季
 * ✅ 模式战绩卡片、攻防干员 Top 4 与出场比例条，使用本地字体离线绘图
-* ✅ 数据分析功能
-* ⚙️ 地图筛选 `-m / --map`
 
 ## Usage 使用说明
 
@@ -34,14 +38,14 @@ R6_OUTPUT_IMAGE = True
 R6_CACHE_MINUTES = 45
 ```
 
-## 参考运行环境
+## Environment 参考运行环境
 
 * **Python 3.12**
 * **NoneBot2**
 * **OneBot v11**
 * **NapCat（反向 WebSocket）**
 
-## 特别提醒
+## Notice 特别提醒
 
 * 本插件为 **非育碧官方工具**
 * 所有数据来自R6Data API

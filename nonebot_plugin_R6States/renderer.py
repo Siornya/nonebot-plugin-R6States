@@ -213,8 +213,6 @@ def _board_card(canvas: _Canvas, y: int, board: _Board) -> None:
     if board.ranked:
         canvas.text(right, y + 26, rank_name(int(board.value("rank_points"))),
                     16, _WHITE, weight=600, align="right", width=260)
-    else:
-        canvas.text(right, y + 25, "PLAYLIST STATS", 10, _DIM, align="right")
     canvas.line(left, y + 36, right - left)
 
     wins, losses = board.value("wins"), board.value("losses")

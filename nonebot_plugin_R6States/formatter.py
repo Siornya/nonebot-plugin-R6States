@@ -32,6 +32,7 @@ _BOARD_CN = {
 
 #: 1000 起每档 100 分、每大段 5 小级；<1000 未定级，>=4500 冠军。
 _RANK_TIERS = ("紫铜", "青铜", "白银", "黄金", "铂金", "翡翠", "钻石")
+_RANK_DIVISIONS = ("V", "IV", "III", "II", "I")
 
 
 def rank_name(mmr: int) -> str:
@@ -40,7 +41,7 @@ def rank_name(mmr: int) -> str:
     if mmr >= 4500:
         return "冠军"
     idx = (mmr - 1000) // 100
-    return f"{_RANK_TIERS[idx // 5]}{5 - idx % 5}"
+    return f"{_RANK_TIERS[idx // 5]}{_RANK_DIVISIONS[idx % 5]}"
 
 
 def _format_boards(profiles: list[dict[str, Any]]) -> list[str]:

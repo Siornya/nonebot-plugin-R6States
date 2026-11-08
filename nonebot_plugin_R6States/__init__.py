@@ -4,10 +4,10 @@ from nonebot import on_command, logger, get_driver
 from nonebot.adapters import Message
 from nonebot.params import CommandArg
 from nonebot.plugin import PluginMetadata, get_plugin_config
-from nonebot.adapters.onebot.v11 import MessageEvent, MessageSegment, GroupMessageEvent
+from nonebot.adapters.onebot.v11 import Bot, MessageEvent, MessageSegment, GroupMessageEvent
 
 from .config import Config
-from .service import VALID_PLATFORMS, ServiceError, aclose, get_full_stats
+from .service import VALID_PLATFORMS, ServiceError, aclose, get_full_stats, analyze_replay
 from .formatter import format_full_stats
 from .renderer import render_full_stats
 from .config_mannger import (
@@ -19,7 +19,7 @@ from .config_mannger import (
 __plugin_meta__ = PluginMetadata(
     name="彩六数据查询",
     description="查询指定玩家的数据",
-    usage="/r6 <id...> [平台]　/r6key <key>　/r6help",
+    usage="/r6 analyze + .rec 附件　/r6 <id...> [平台]　/r6key <key>　/r6help",
     homepage="https://github.com/Siornya/nonebot-plugin-R6States",
     type="application",
     config=Config,
@@ -41,6 +41,7 @@ r6_help = on_command("r6help", aliases={"R6help"}, priority=5, block=True)
 HELP_TEXT = (
     "彩六数据查询\n"
     "/r6 <id...> [平台]  查询玩家数据（最多5个，空格分隔；平台默认 uplay，可选 psn/xbl）\n"
+    "/r6 analyze      同一消息附上 .rec 文件，分析比赛录像（1–20个，须属于同场比赛）\n"
     "/r6key <key>      设置本群/本人的 r6data API Key\n"
     "/r6help           显示帮助\n"
     "聊群中API KEY优先用个人 Key，没有则用群 Key"
@@ -80,10 +81,25 @@ async def _(event: MessageEvent, args: Message = CommandArg()):
 
 
 @r6.handle()
-async def _(event: MessageEvent, args: Message = CommandArg()):
+async def _(bot: Bot, event: MessageEvent, args: Message = CommandArg()):
     tokens = args.extract_plain_text().split()
     if not tokens:
         await r6.finish("用法：/r6 <id...> [平台]，详见 /r6help")
+
+    if tokens[0].lower() == "analyze":
+        if len(tokens) != 1:
+            await r6.finish("用法：/r6 analyze，并在同一条消息附上 .rec 文件")
+        try:
+            result = await analyze_replay(
+                bot, event, _lookup_scopes(event),
+                max_bytes=plugin_config.r6_replay_max_mb * 1024 * 1024,
+            )
+        except ServiceError as error:
+            await r6.finish(MessageSegment.text(f"❌ {error.message}"))
+        except Exception as error:
+            logger.error(f"录像分析失败: {type(error).__name__}")
+            await r6.finish("❌ 录像分析失败，请稍后重试")
+        await r6.finish(MessageSegment.text(result))
 
     # 末尾 token 若是平台名则作为平台，其余都当作玩家 id。
     platform = "uplay"

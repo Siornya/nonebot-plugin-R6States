@@ -99,3 +99,28 @@ async def get_full_stats(
     data["_fetched_at"] = time.time()
     await _cache.set(cache_key, data, ttl)
     return data
+
+
+async def analyze_replay(bot: Any, event: Any, scopes: list[str], *, max_bytes: int) -> str:
+    from .replay import download_replays, format_replay, replay_attachments
+
+    try:
+        files = replay_attachments(event)
+        api_key, _ = resolve_apikey(scopes)
+        if not api_key:
+            raise ServiceError(f"未设置 API Key。{APIKEY_HELP}")
+        uploads = await download_replays(bot, event, files, max_bytes=max_bytes)
+        r6 = R6Client(api_key=api_key, client=_client())
+        # Replay parsing can take longer than a stats query.
+        response = await r6.match_replay.upload_replays(uploads)
+        return format_replay(response)
+    except R6APIError as error:
+        if error.status == 401:
+            raise ServiceError(f"API Key 鉴权失败。{APIKEY_HELP}", expired=True) from error
+        if error.status == 403:
+            raise ServiceError("录像上传被拒绝，可能已达到 Arenyze 套餐的存储额度，请在平台检查或删除旧录像。") from error
+        raise ServiceError(f"录像分析失败：API 返回错误（{error.status}）") from error
+    except ValueError as error:
+        raise ServiceError(str(error)) from error
+    except httpx.HTTPError as error:
+        raise ServiceError("录像下载或上传失败，请检查文件地址和网络后重试。") from error

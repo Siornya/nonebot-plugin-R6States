@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from nonebot import require
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 require("nonebot_plugin_localstore")
 
@@ -25,3 +25,6 @@ class Config(BaseModel):
     # 玩家数据本地缓存时长（分钟）。越大越省 API 用量，但数据越旧。
     # 在 .env 用 R6_CACHE_MINUTES 覆盖
     r6_cache_minutes: int = 45
+
+    # 同一条消息的录像附件总大小上限（MB）
+    r6_replay_max_mb: int = Field(default=128, gt=0)

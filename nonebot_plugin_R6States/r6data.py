@@ -1,43 +1,33 @@
-"""
-对 R6Data API 的封装，从上游 npm 包 `r6-data.js` 移植。
+"""Arenyze API calls used by this plugin.
 
-用法:
-    from .r6data import R6Client
-
-    r6 = R6Client(api_key="YOUR_KEY")
-    info = await r6.players.get_profile("PlayerName", "uplay")
-    ops  = await r6.game.get_operators(side="attacker")
-    await r6.aclose()
+Full stats follows the web API documentation; replay uploads follow r6-data.js.
 """
 
 from __future__ import annotations
 from typing import Any, Optional, Mapping
+from pathlib import Path
+import asyncio
 import httpx
 
 #: 本移植对标的 r6-data.js 版本
-BASED_ON_VERSION = "3.3.0"
+BASED_ON_VERSION = "3.3.1"
+BASED_ON_COMMIT = "544eff7536bb89acbf0ca1e9a654191120ccdcf9"
 
 #: API 地址
 BASE_URL = "https://public-api.arenyze.com/r6/api"
-
-#: v7 对应 Y11S2 起的 Ranked 3.0
-VALID_RANK_VERSIONS = ("v1", "v2", "v3", "v4", "v5", "v6", "v7")
-
-VALID_OPERATOR_MODES = (
-    "all", "ranked", "standard", "unranked", "quick-match", "casual",
-    "dual-front", "siege-cup",
-)
+SITE_BASE_URL = "https://r6.arenyze.com/api"
 
 VALID_FULL_STATS_MODES = ("ranked", "standard", "casual", "all")
 
-# 平台类型供调用方参考；V2 平台族在 profile / leaderboard 中校验。
+# fullstats 支持的平台。
 PLATFORM_TYPES = ("uplay", "psn", "xbl")
-PLATFORM_FAMILIES = ("pc", "psn", "xbl")
 
 __all__ = [
     "R6Client",
     "Players",
-    "Game",
+    "MatchReplay",
+    "SITE_BASE_URL",
+    "BASED_ON_COMMIT",
     "R6APIError",
     "BASED_ON_VERSION",
     "BASE_URL",
@@ -79,50 +69,6 @@ class Players:
     def __init__(self, client: "R6Client") -> None:
         self._client = client
 
-    async def get_profile(self, name_on_platform: str, platform_type: str,
-                          platform_families: Optional[str] = None) -> Any:
-        """V2 完整档案：account、stats、banned、seasons、history 和 meta。
-
-        platform_families 可选 pc/psn/xbl，省略时由服务端推断。
-        可选数据缺失时由 meta.partial / meta.errors 描述，原样返回。
-        """
-        if not name_on_platform or not platform_type:
-            raise ValueError("Missing required parameters: name_on_platform, platform_type")
-        if platform_families and platform_families not in PLATFORM_FAMILIES:
-            raise ValueError(
-                "Invalid platform_families. Must be one of: " + ", ".join(PLATFORM_FAMILIES))
-        return await self._client._get("/v2/profile", {
-            "nameOnPlatform": name_on_platform,
-            "platformType": platform_type,
-            "platform_families": platform_families,
-        })
-
-    async def get_operator_stats(self, name_on_platform: str, platform_type: str,
-                                 season_year: Optional[str] = None,
-                                 modes: Optional[str] = None) -> Any:
-        """V2 干员战绩，支持 VALID_OPERATOR_MODES 中的模式。"""
-        if not name_on_platform or not platform_type:
-            raise ValueError("Missing required parameters: name_on_platform, platform_type")
-        if modes and modes not in VALID_OPERATOR_MODES:
-            raise ValueError("Invalid modes. Must be one of: " + ", ".join(VALID_OPERATOR_MODES))
-        params = {
-            "nameOnPlatform": name_on_platform,
-            "platformType": platform_type,
-            "modes": modes,
-        }
-        if season_year:
-            params["seasonYear"] = season_year
-        return await self._client._get("/v2/operators", params)
-
-    async def get_leaderboard(self, *, page: Optional[int] = None,
-                              platform: Optional[str] = None) -> Any:
-        """V2 排行榜：页码 1～50，平台 pc/psn/xbl。"""
-        if page is not None and (type(page) is not int or not 1 <= page <= 50):
-            raise ValueError("Invalid page. Must be an integer between 1 and 50")
-        if platform and platform not in PLATFORM_FAMILIES:
-            raise ValueError("Invalid platform. Must be one of: " + ", ".join(PLATFORM_FAMILIES))
-        return await self._client._get("/v2/leaderboard", {"page": page, "platform": platform})
-
     async def get_full_stats(self, name_on_platform: str, platform_type: str,
                              season_year: Optional[str] = None,
                              modes: Optional[str] = None) -> Any:
@@ -149,114 +95,38 @@ class Players:
         return await self._client._get("/v2/fullstats", params)
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# 资源:Game(静态数据)
-# ──────────────────────────────────────────────────────────────────────────
+class MatchReplay:
+    """Website replay API; preserves match payloads and plan quota responses."""
 
-class Game:
     def __init__(self, client: "R6Client") -> None:
         self._client = client
 
-    async def get_game_stats(self) -> Any:
-        return await self._client._get("/v2/gamestats", {})
+    async def upload_replays(self, files: Any) -> Any:
+        """Upload 1–20 .rec files from paths, bytes, or {path/name/data} mappings."""
+        entries = list(files) if isinstance(files, (list, tuple)) else [files]
+        if not entries or entries == [None]:
+            raise ValueError("At least one .rec file is required")
+        if len(entries) > 20:
+            raise ValueError("A maximum of 20 .rec files can be uploaded per request")
+        uploads = []
+        for entry in entries:
+            name = None
+            if isinstance(entry, Mapping):
+                name = entry.get("name")
+                entry = entry.get("path") or entry.get("data")
+            if isinstance(entry, (str, Path)):
+                path = Path(entry)
+                name = name or path.name
+                entry = await asyncio.to_thread(path.read_bytes)
+            name = name or "replay.rec"
+            if not isinstance(entry, (bytes, bytearray, memoryview)):
+                raise ValueError("Invalid replay entry: expected path, bytes, or mapping")
+            if not isinstance(name, str) or Path(name).suffix.lower() != ".rec":
+                raise ValueError("Only .rec replay files are allowed")
+            uploads.append(("replayFiles", (name, bytes(entry), "application/octet-stream")))
+        return await self._client._request(
+            "POST", "/replays/api/upload", site=True, files=uploads)
 
-    async def get_twitch_stats(self) -> Any:
-        return await self._client._get("/v2/twitchstats", {})
-
-    async def get_maps(self, *, name: Optional[str] = None,
-                       location: Optional[str] = None,
-                       release_date: Optional[str] = None,
-                       playlists: Optional[str] = None,
-                       map_reworked: Optional[bool] = None) -> Any:
-        return await self._client._get("/maps", {
-            "name": name, "location": location, "releaseDate": release_date,
-            "playlists": playlists, "mapReworked": map_reworked,
-        })
-
-    async def get_operators(self, *, name: Optional[str] = None,
-                            safename: Optional[str] = None,
-                            realname: Optional[str] = None,
-                            birthplace: Optional[str] = None,
-                            age: Optional[int] = None,
-                            date_of_birth: Optional[str] = None,
-                            season_introduced: Optional[str] = None,
-                            health: Optional[int] = None,
-                            speed: Optional[int] = None,
-                            unit: Optional[str] = None,
-                            country_code: Optional[str] = None,
-                            roles: Optional[str] = None,
-                            side: Optional[str] = None) -> Any:
-        return await self._client._get("/operators", {
-            "name": name, "safename": safename, "realname": realname,
-            "birthplace": birthplace, "age": age, "date_of_birth": date_of_birth,
-            "season_introduced": season_introduced, "health": health,
-            "speed": speed, "unit": unit, "country_code": country_code,
-            "roles": roles, "side": side,
-        })
-
-    async def get_ranks(self, *, name: Optional[str] = None,
-                        min_mmr: Optional[int] = None,
-                        max_mmr: Optional[int] = None,
-                        version: Optional[str] = None) -> Any:
-        if version and version not in VALID_RANK_VERSIONS:
-            raise ValueError(
-                "Version not valid. Choose between " + ", ".join(VALID_RANK_VERSIONS) + ".")
-        return await self._client._get("/ranks", {
-            "name": name, "min_mmr": min_mmr, "max_mmr": max_mmr, "version": version,
-        })
-
-    async def get_seasons(self, *, name: Optional[str] = None,
-                          map: Optional[str] = None,
-                          operators: Optional[str] = None,
-                          weapons: Optional[str] = None,
-                          description: Optional[str] = None,
-                          code: Optional[str] = None,
-                          start_date: Optional[str] = None) -> Any:
-        return await self._client._get("/seasons", {
-            "name": name, "map": map, "operators": operators, "weapons": weapons,
-            "description": description, "code": code, "startDate": start_date,
-        })
-
-    async def get_weapons(self, *, name: Optional[str] = None) -> Any:
-        return await self._client._get("/weapons", {"name": name})
-
-    async def get_charms(self, *, name: Optional[str] = None,
-                         collection: Optional[str] = None,
-                         rarity: Optional[str] = None,
-                         availability: Optional[str] = None,
-                         bundle: Optional[str] = None,
-                         season: Optional[str] = None) -> Any:
-        return await self._client._get("/charms", {
-            "name": name, "collection": collection, "rarity": rarity,
-            "availability": availability, "bundle": bundle, "season": season,
-        })
-
-    async def get_universal_skins(self, *, name: Optional[str] = None) -> Any:
-        return await self._client._get("/universalSkins", {"name": name})
-
-    async def get_attachment(self, *, name: Optional[str] = None,
-                             style: Optional[str] = None,
-                             rarity: Optional[str] = None,
-                             availability: Optional[str] = None,
-                             bundle: Optional[str] = None,
-                             season: Optional[str] = None) -> Any:
-        return await self._client._get("/attachment", {
-            "name": name, "style": style, "rarity": rarity,
-            "availability": availability, "bundle": bundle, "season": season,
-        })
-
-    async def get_search_all(self, query: str) -> Any:
-        if not query or not isinstance(query, str):
-            raise ValueError("Search query is required and must be a string")
-        return await self._client._get("/searchAll", {"q": query})
-
-    async def get_service_status(self) -> Any:
-        return await self._client._get("/serviceStatus", {})
-
-
-# ──────────────────────────────────────────────────────────────────────────
-# 主客户端
-# ──────────────────────────────────────────────────────────────────────────
 
 class R6Client:
     """
@@ -264,7 +134,7 @@ class R6Client:
 
         r6 = R6Client(api_key="...")
         try:
-            data = await r6.players.get_profile("Name", "uplay", "pc")
+            data = await r6.players.get_full_stats("Name", "uplay")
         finally:
             await r6.aclose()
 
@@ -276,17 +146,19 @@ class R6Client:
 
     def __init__(self, api_key: str, *, base_url: str = BASE_URL,
                  timeout: float = 15.0,
+                 site_base_url: str = SITE_BASE_URL,
                  client: Optional[httpx.AsyncClient] = None) -> None:
         if not api_key:
             raise ValueError("Missing required config parameter: api_key")
         self.api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._site_base_url = site_base_url.rstrip("/")
         # 允许外部注入共享的 AsyncClient(例如复用 NoneBot 的);否则自建。
         self._http = client or httpx.AsyncClient(timeout=timeout)
         self._owns_http = client is None
 
         self.players = Players(self)
-        self.game = Game(self)
+        self.match_replay = MatchReplay(self)
 
     async def __aenter__(self) -> "R6Client":
         return self
@@ -300,14 +172,19 @@ class R6Client:
             await self._http.aclose()
 
     async def _get(self, path: str, params: Mapping[str, Any]) -> Any:
-        url = f"{self._base_url}/{path.lstrip('/')}"
+        return await self._request("GET", path, params=_clean_params(params))
+
+    async def _request(self, method: str, path: str, *, site: bool = False,
+                       **kwargs: Any) -> Any:
+        base = self._site_base_url if site else self._base_url
+        url = f"{base}/{path.lstrip('/')}"
         headers = {
             "Accept": "application/json",
             "Cache-Control": "no-cache",
             "User-Agent": f"r6data.py (port of r6-data.js@{BASED_ON_VERSION})",
             "api-key": self.api_key,
         }
-        resp = await self._http.get(url, params=_clean_params(params), headers=headers)
+        resp = await self._http.request(method, url, headers=headers, **kwargs)
         return self._handle(resp)
 
     @staticmethod
